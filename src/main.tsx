@@ -15,7 +15,8 @@ function Palette() {
     const onKey = (e: KeyboardEvent) => paletteKey(e, () => invoke("hide_palette"));
     // the window is larger than the card and its transparent margin still takes clicks: treat them as a click outside
     const onDown = (e: PointerEvent) => {
-      if (!card.current?.contains(e.target as Node)) invoke("hide_palette");
+      // composedPath is fixed at dispatch, so a node React removes during the event still counts as inside
+      if (!card.current || !e.composedPath().includes(card.current)) invoke("hide_palette");
     };
     window.addEventListener("keydown", onKey);
     window.addEventListener("pointerdown", onDown);

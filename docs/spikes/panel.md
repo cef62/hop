@@ -45,8 +45,8 @@ focus over a full-screen app (rows 1 and 2 below); `tauri-nspanel` would then re
   under the recorder instead (plan §4.8 updated).
   Spotlight's ⌥Space is a system symbolic hotkey (`com.apple.symbolichotkeys` id 64); on this Mac it is disabled.
 - **Margin clicks.** The fixed window is larger than the card, and its transparent margin still takes clicks (owner
-  step 15: thin strips left, top and right, about 450 px below). A `pointerdown` outside the card now hides the palette,
-  like a blur. The click is consumed, not passed to the app below (Spotlight and Raycast behave the same). True
+  step 15: thin strips left, top and right, about 450 px below). A `pointerdown` whose path misses the card now hides the palette,
+  like a blur. The click is consumed, not passed to the app below. True
   click-through would need per-region `ignoresMouseEvents` driven by a global mouse monitor; not worth it.
 - **Focus return.** `panel::hide` hides the window, then `app.hide()` (velo's trick) so macOS reactivates the
   previously active app.
