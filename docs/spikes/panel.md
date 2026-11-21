@@ -9,7 +9,7 @@ No `tauri-nspanel`. The plain window:
 - `tauri.conf.json`: `macOSPrivateApi: true` (with tauri's `macos-private-api` feature), transparent, no decorations,
   not resizable, hidden at start, `skipTaskbar`, `alwaysOnTop`, fixed 640×460 logical (Roomy card 600 px + footer
   fits inside with margin). No window-state plugin.
-- Accessory activation policy at setup: no Dock icon, not in ⌘Tab.
+- Accessory activation policy, set before `run` (tao forces Regular at launch otherwise) plus `LSUIElement` in `Info.plist`: no Dock icon, not in ⌘Tab, not even at launch.
 - `objc2-app-kit` (0.3.2, the version tauri/tao already pull in) on the NSWindow at setup:
   collection behavior `CanJoinAllSpaces | FullScreenAuxiliary | Transient | IgnoresCycle`, level
   `NSStatusWindowLevel` (25). tauri's `alwaysOnTop` only gives the floating level (3), which sits below a full-screen

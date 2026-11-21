@@ -2,7 +2,7 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- agent app from the first frame: the runtime Accessory policy in setup comes ~100 ms after launch, too late to keep the Dock icon away -->
+	<!-- LaunchServices starts hop as an agent app; lib.rs sets the same Accessory policy before tao finishes launching -->
 	<key>LSUIElement</key>
 	<true/>
 </dict>
