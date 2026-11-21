@@ -13,9 +13,15 @@ function Palette() {
     const shown = listen("palette-shown", () => input.current?.focus());
     const hidden = listen("palette-hidden", () => setQuery(""));
     const onKey = (e: KeyboardEvent) => paletteKey(e, () => invoke("hide_palette"));
+    // the window is larger than the card and its transparent margin still takes clicks: treat them as a click outside
+    const onDown = (e: PointerEvent) => {
+      if (!card.current?.contains(e.target as Node)) invoke("hide_palette");
+    };
     window.addEventListener("keydown", onKey);
+    window.addEventListener("pointerdown", onDown);
     return () => {
       window.removeEventListener("keydown", onKey);
+      window.removeEventListener("pointerdown", onDown);
       shown.then((off) => off());
       hidden.then((off) => off());
     };

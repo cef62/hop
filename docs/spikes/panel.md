@@ -40,7 +40,13 @@ focus over a full-screen app (rows 1 and 2 below); `tauri-nspanel` would then re
 - **Hotkey conflicts are invisible.** Two hop processes both registered `Alt+Space` successfully: Carbon's
   `RegisterEventHotKey` does not fail when another *process* holds the chord. Registration errors therefore cannot be
   the M3 conflict signal by themselves (Settings needs another check, or must say "may be taken by another app").
+  Owner confirmed with Raycast on ⌥Space: hop logs nothing and both apps react to the press. Plan §4.8 ("Settings shows
+  the conflict") only holds for chords the OS refuses; M3 needs an owner decision on what to show instead.
   Spotlight's ⌥Space is a system symbolic hotkey (`com.apple.symbolichotkeys` id 64); on this Mac it is disabled.
+- **Margin clicks.** The fixed window is larger than the card, and its transparent margin still takes clicks (owner
+  step 15: thin strips left, top and right, about 450 px below). A `pointerdown` outside the card now hides the palette,
+  like a blur. The click is consumed, not passed to the app below (Spotlight and Raycast behave the same). True
+  click-through would need per-region `ignoresMouseEvents` driven by a global mouse monitor; not worth it.
 - **Focus return.** `panel::hide` hides the window, then `app.hide()` (velo's trick) so macOS reactivates the
   previously active app.
 
@@ -48,30 +54,30 @@ focus over a full-screen app (rows 1 and 2 below); `tauri-nspanel` would then re
 
 Verification on this Mac was limited: the session ran with the **screen locked**
 (`CGSSessionScreenIsLocked = 1`), so screenshots were black and System Events keystrokes went to the lock screen.
-Rows marked "needs owner check" were not exercised.
+Owner run on 2026-11-22 (checklist below): steps 12 and 15 failed, IME not tested, no other failure reported.
 
 | # | Requirement | Result | How |
 |---|---|---|---|
-| 4.7-1 | Over full-screen apps, any Space, no Space switch | needs owner check | config in place (collection behavior + level 25) |
-| 4.7-2 | Keyboard focus on show, focus back on hide | needs owner check | |
-| 4.7-3 | Not in Dock, ⌘Tab, Mission Control | needs owner check | Accessory policy + `Transient`/`IgnoresCycle` set |
-| 4.7-4 | Transparent, borderless, rounded, vibrancy, fixed size | partly verified | `CGWindowListCopyWindowInfo`: window 640×460 at layer 25 on screen; look (vibrancy, radius) needs owner check |
+| 4.7-1 | Over full-screen apps, any Space, no Space switch | owner: pass | config in place (collection behavior + level 25) |
+| 4.7-2 | Keyboard focus on show, focus back on hide | owner: pass | |
+| 4.7-3 | Not in Dock, ⌘Tab, Mission Control | owner: pass | Accessory policy + `Transient`/`IgnoresCycle` set |
+| 4.7-4 | Transparent, borderless, rounded, vibrancy, fixed size | owner: pass; margin clicks fixed (below) | `CGWindowListCopyWindowInfo`: window 640×460 at layer 25 on screen; look (vibrancy, radius): owner pass |
 | 4.7-5 | Centered on the screen under the cursor, top at ~1/3 | verified (one display), unit-tested (two) | window at x=580, y=390 on a 1800×1169 pt display (expected 580, 389.7); `place` tests cover a second monitor at another scale and a negative origin |
-| 4.7-6 | Hide on blur and Esc, query cleared on hide | needs owner check | logic unit-tested |
-| 4.8 | ⌥Space typed no U+00A0 into the frontmost app | needs owner check | |
+| 4.7-6 | Hide on blur and Esc, query cleared on hide | owner: pass | logic unit-tested |
+| 4.8 | ⌥Space typed no U+00A0 into the frontmost app | owner: pass | |
 | — | Reopen (open hop.app again) shows the palette | verified | second `open hop.app` put the window on screen (window list) |
 
 ### M1 attack list
 
 | Attack | Result |
 |---|---|
-| Full-screen Space | needs owner check |
-| Second monitor with a different scale | unit-tested placement; needs owner check on hardware |
-| Stage Manager | needs owner check |
-| Hotkey while the palette is visible | unit-tested (toggle hides); needs owner check |
-| App that grabs ⌥Space first | registration does **not** fail across processes (two hops both registered); which app receives the press needs owner check (e.g. set Raycast or Spotlight to ⌥Space) |
-| Focus return to the previous app | needs owner check |
-| Rapid double press | unit-tested (second press hides even before focus arrives); needs owner check |
+| Full-screen Space | owner: pass |
+| Second monitor with a different scale | owner: pass |
+| Stage Manager | owner: pass |
+| Hotkey while the palette is visible | unit-tested (toggle hides); owner: pass |
+| App that grabs ⌥Space first | **fails, known limit**: with Raycast on ⌥Space, hop starts with no stderr and both apps react to the press. Carbon registration never reports a cross-process conflict, so M3 cannot detect it from registration (see Risks) |
+| Focus return to the previous app | owner: pass |
+| Rapid double press | unit-tested (second press hides even before focus arrives); owner: pass |
 
 ### Measured (release build, Apple silicon, this Mac)
 
