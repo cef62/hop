@@ -41,7 +41,8 @@ focus over a full-screen app (rows 1 and 2 below); `tauri-nspanel` would then re
   `RegisterEventHotKey` does not fail when another *process* holds the chord. Registration errors therefore cannot be
   the M3 conflict signal by themselves (Settings needs another check, or must say "may be taken by another app").
   Owner confirmed with Raycast on ⌥Space: hop logs nothing and both apps react to the press. Plan §4.8 ("Settings shows
-  the conflict") only holds for chords the OS refuses; M3 needs an owner decision on what to show instead.
+  the conflict") only holds for chords the OS refuses; Owner decision: M3 Settings shows a permanent hint
+  under the recorder instead (plan §4.8 updated).
   Spotlight's ⌥Space is a system symbolic hotkey (`com.apple.symbolichotkeys` id 64); on this Mac it is disabled.
 - **Margin clicks.** The fixed window is larger than the card, and its transparent margin still takes clicks (owner
   step 15: thin strips left, top and right, about 450 px below). A `pointerdown` outside the card now hides the palette,
@@ -54,7 +55,7 @@ focus over a full-screen app (rows 1 and 2 below); `tauri-nspanel` would then re
 
 Verification on this Mac was limited: the session ran with the **screen locked**
 (`CGSSessionScreenIsLocked = 1`), so screenshots were black and System Events keystrokes went to the lock screen.
-Owner run on 2026-11-22 (checklist below): steps 12 and 15 failed, IME not tested, no other failure reported.
+Owner run on 2026-11-22 (checklist below): step 12 failed (known limit, see Risks), step 15 failed and is fixed (re-tested: pass), IME skipped by owner, no other failure reported.
 
 | # | Requirement | Result | How |
 |---|---|---|---|

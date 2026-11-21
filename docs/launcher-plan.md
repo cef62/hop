@@ -125,7 +125,7 @@ Implementation options to evaluate in the spike, in order: Tauri's own window AP
 
 - Default `⌥Space`, registered with `tauri-plugin-global-shortcut`. Pressing it while the palette is visible hides it.
 - Port velo's registration/fallback logic: if registration fails, the menu-bar icon is still there and Settings shows the conflict instead of silently rejecting the binding.
-- **Verify in M1** that `⌥Space` is consumed and does not type a non-breaking space into the frontmost app. Spotlight, Raycast and Alfred default to the same chord, so Settings must show a clear message when it is taken.
+- **Verify in M1** that `⌥Space` is consumed and does not type a non-breaking space into the frontmost app. Spotlight, Raycast and Alfred default to the same chord, so Settings must show a clear message when it is taken. M1 finding: macOS does not report a chord held by another app (Raycast on `⌥Space`: hop registers fine, both apps react), so registration errors only cover chords the OS refuses. Owner decision (2026-11-22): Settings always shows a hint under the recorder: "If another app (Raycast, Alfred) uses this shortcut, both will respond; change one of them." No detection of other apps' settings.
 - The shortcut recorder in Settings is a port of velo's (Backspace clears, conflicts displayed).
 
 ### 4.9 Menu-bar icon, login, single instance
