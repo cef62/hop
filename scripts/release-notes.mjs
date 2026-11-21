@@ -7,7 +7,7 @@
 export const SEPARATOR = "---";
 export const FALLBACK = "- See CHANGELOG.md for details.";
 export const HINTS =
-  "macOS: the app is ad-hoc signed, not notarized: on first launch open System Settings → Privacy & Security and click Open Anyway, or run `xattr -cr /Applications/hop.app` once. Windows: the installer is unsigned. When SmartScreen appears, click More info → Run anyway.";
+  "macOS: the app is ad-hoc signed, not notarized: on first launch open System Settings → Privacy & Security and click Open Anyway, or run `xattr -cr /Applications/hop.app` once.";
 
 /** The release body for `version` (no leading "v") from the text of CHANGELOG.md. */
 export function releaseNotes(changelog, version) {
@@ -26,7 +26,7 @@ export function releaseNotes(changelog, version) {
   return `${body}\n\n${SEPARATOR}\n\n${HINTS}\n`;
 }
 
-// the command line; Node only (the browser demo imports releaseNotes, src/demo/updates.ts)
+// the command line; Node only (the What's new window imports releaseNotes in M5)
 const argv = globalThis.process?.argv ?? [];
 if (argv[1] && argv[1].endsWith("release-notes.mjs")) {
   const [version, file = "CHANGELOG.md"] = argv.slice(2);

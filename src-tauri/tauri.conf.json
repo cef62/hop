@@ -33,7 +33,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "REPLACE_WITH_HOP_MINISIGN_PUBLIC_KEY",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDA3NzFGN0U3N0ExNzhEM0IKUldRN2pSZDY1L2R4Qi9PS1NuVXJsUlo4cmtWdDl0UFlrcVIzdzhDTjlaa3g0TEx1Y0xSNjI0S1YK",
       "endpoints": ["https://github.com/cef62/hop/releases/latest/download/latest.json"],
       "requireSignedVersion": true
     }
