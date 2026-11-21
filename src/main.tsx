@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
+import { paletteKey } from "./keys";
 
 function Palette() {
   const [query, setQuery] = useState("");
@@ -11,7 +12,10 @@ function Palette() {
   useEffect(() => {
     const shown = listen("palette-shown", () => input.current?.focus());
     const hidden = listen("palette-hidden", () => setQuery(""));
+    const onKey = (e: KeyboardEvent) => paletteKey(e, () => invoke("hide_palette"));
+    window.addEventListener("keydown", onKey);
     return () => {
+      window.removeEventListener("keydown", onKey);
       shown.then((off) => off());
       hidden.then((off) => off());
     };
@@ -36,9 +40,6 @@ function Palette() {
         className="search"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Escape") invoke("hide_palette");
-        }}
         placeholder="Search apps"
         aria-label="Search apps"
         autoFocus
