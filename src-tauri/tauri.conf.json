@@ -11,11 +11,30 @@
   },
   "app": {
     "windows": [
-      { "label": "main", "visible": false, "title": "hop", "width": 600, "height": 400 }
+      {
+        "label": "main",
+        "title": "hop",
+        "width": 640,
+        "height": 460,
+        "visible": false,
+        "transparent": true,
+        "decorations": false,
+        "resizable": false,
+        "skipTaskbar": true,
+        "alwaysOnTop": true,
+        "windowEffects": {
+          "effects": [
+            "hudWindow"
+          ],
+          "state": "active",
+          "radius": 12
+        }
+      }
     ],
     "security": {
       "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: asset:"
-    }
+    },
+    "macOSPrivateApi": true
   },
   "bundle": {
     "active": true,
@@ -34,7 +53,9 @@
   "plugins": {
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDA3NzFGN0U3N0ExNzhEM0IKUldRN2pSZDY1L2R4Qi9PS1NuVXJsUlo4cmtWdDl0UFlrcVIzdzhDTjlaa3g0TEx1Y0xSNjI0S1YK",
-      "endpoints": ["https://github.com/cef62/hop/releases/latest/download/latest.json"],
+      "endpoints": [
+        "https://github.com/cef62/hop/releases/latest/download/latest.json"
+      ],
       "requireSignedVersion": true
     }
   }
