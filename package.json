@@ -16,11 +16,6 @@
     "tauri": "tauri",
     "build:app": "TAURI_SIGNING_PRIVATE_KEY=\"$(cat ~/.tauri/hop.key)\" TAURI_SIGNING_PRIVATE_KEY_PASSWORD=\"$(cat ~/.tauri/hop.password)\" tauri build"
   },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild"
-    ]
-  },
   "devDependencies": {
     "@changesets/cli": "3.0.3",
     "@tauri-apps/cli": "^2.12.4",
