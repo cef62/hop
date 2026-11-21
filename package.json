@@ -1,0 +1,35 @@
+{
+  "name": "hop",
+  "private": true,
+  "version": "0.0.0",
+  "license": "MIT",
+  "type": "module",
+  "packageManager": "pnpm@12.3.4",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "changeset": "changeset",
+    "version-packages": "changeset version && node scripts/sync-version.mjs",
+    "release:tag": "changeset git-tag",
+    "tauri": "tauri",
+    "build:app": "TAURI_SIGNING_PRIVATE_KEY=\"$(cat ~/.tauri/hop.key)\" TAURI_SIGNING_PRIVATE_KEY_PASSWORD=\"$(cat ~/.tauri/hop.password)\" tauri build"
+  },
+  "devDependencies": {
+    "@changesets/cli": "3.0.3",
+    "@tauri-apps/cli": "^2.12.4",
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.2.1",
+    "typescript": "~7.0.2",
+    "vite": "^8.3.6",
+    "vitest": "^5.1.0"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.12.4",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  }
+}
