@@ -50,6 +50,8 @@ export function SettingsPage() {
   }, []);
 
   // while recording, the recorder owns the keys
+  // shortcut: the saved hotkey stays registered while recording, so pressing it toggles the palette instead of being
+  // recorded (it would be no change anyway); unregister it during recording if that confuses people
   useEffect(() => {
     if (!recording) return;
     const onKey = (e: KeyboardEvent) => {
