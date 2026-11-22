@@ -67,12 +67,25 @@ impl Settings {
 }
 
 /// A folder whose two-level scan and recursive watch would cover the whole disk or every user's files.
-/// Compared resolved (symlinks, `..`, `/Volumes/Macintosh HD` → `/`) and case-folded, as APFS compares names.
+/// Compared by text only (it runs at startup, before the hotkey: no disk access that a stalled network mount could
+/// block): `..` and `.` resolved, case-folded as APFS compares names, the data-volume firmlink prefix dropped.
+/// shortcut: a symlink to `/` (e.g. `/Volumes/Macintosh HD`) passes; resolve it off the main thread if it ever matters.
 pub fn too_broad(folder: &str) -> bool {
-    let key = |p: &Path| std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf()).to_string_lossy().trim_end_matches('/').to_lowercase();
-    let f = key(Path::new(folder));
-    let home = std::env::var_os("HOME").map(|h| key(Path::new(&h)));
-    ["", "/users", "/volumes", "/system/volumes/data"].contains(&f.as_str()) || home.is_some_and(|h| f == h)
+    let key = |p: &str| {
+        let mut parts: Vec<String> = Vec::new();
+        for c in Path::new(p).components() {
+            match c {
+                std::path::Component::ParentDir => drop(parts.pop()),
+                std::path::Component::Normal(n) => parts.push(n.to_string_lossy().to_lowercase()),
+                _ => {}
+            }
+        }
+        let joined = parts.join("/");
+        joined.strip_prefix("system/volumes/data").map(|r| r.trim_start_matches('/').to_string()).unwrap_or(joined)
+    };
+    let f = key(folder);
+    let home = std::env::var("HOME").ok().map(|h| key(&h));
+    ["", "users", "volumes"].contains(&f.as_str()) || home.is_some_and(|h| f == h)
 }
 
 /// What the window says when it sent a refused key.
@@ -413,7 +426,7 @@ mod tests {
     #[test]
     fn extra_folders_refuse_the_whole_disk_and_home() {
         let home = std::env::var("HOME").unwrap();
-        for f in ["/", "/Users", "/Users/", "/users", "/Users/..", "/Volumes", "/System/Volumes/Data", home.as_str()] {
+        for f in ["/", "/Users", "/Users/", "/users", "/Users/..", "/Volumes", "/System/Volumes/Data", "/System/Volumes/Data/Users", &format!("/System/Volumes/Data{home}"), home.as_str()] {
             assert!(too_broad(f), "{f}");
             assert_eq!(merge(&Settings::default(), &json!({"extraFolders": [f]})).1, ["extraFolders"], "{f}");
         }
