@@ -8,9 +8,11 @@ A minimal macOS app launcher. Work in progress.
   **⌘Enter** reveals the app in Finder.
 - hop finds apps in `/Applications`, `/System/Applications`, their `Utilities` folders and `~/Applications`, one
   folder deep (vendor folders work), and picks up installed or removed apps by itself.
-- Palette style: until Settings exist, put `{"paletteStyle": "roomy"}` in
-  `~/Library/Application Support/dev.hop.app/settings.json` for the larger style (default `compact`); it applies the
-  next time the palette opens.
 - **Esc**, or clicking away, hides it and returns focus to the app you were in.
-- hop has no Dock icon and no menu bar icon yet. Open the hop app again to show the palette (useful if another app
-  holds ⌥Space). Quit with **⌘Q** while the palette is open, or `pkill -x hop`.
+- The menu-bar icon opens the palette or **Settings…**, and quits hop. It is always there, so hop stays reachable
+  when another app holds the hotkey.
+- **⌘,** in the palette opens Settings; **Esc** closes Settings.
+- Settings: the hotkey (click it, press a new chord; ⌫ removes it, Esc cancels), start at login (on by default),
+  extra folders to index, apps to hide, theme (System, Light, Dark) and palette style (Compact or Roomy). Changes
+  apply at once. If another app (Raycast, Alfred) uses the same hotkey, both respond: change one of them.
+- Opening the hop app again while it runs shows the palette.

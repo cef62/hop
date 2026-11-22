@@ -108,6 +108,7 @@ export function Palette() {
     hide: () => invoke("hide_palette"),
     move: (d) => setSel(move(at, d, rows.length)),
     open: (reveal) => open(at, reveal),
+    settings: () => invoke("open_settings"),
   };
 
   useEffect(() => {

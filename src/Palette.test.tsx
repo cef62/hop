@@ -12,7 +12,7 @@ const rows = search("fi", prepare(apps), {});
 /** Renders `style` after pressing `keys`, through the same key handler and selection logic the palette uses. */
 function render(style: Style, keys: string[]) {
   let sel = 0;
-  const actions = { hide() {}, move: (d: number) => (sel = move(sel, d, rows.length)), open() {} };
+  const actions = { hide() {}, move: (d: number) => (sel = move(sel, d, rows.length)), open() {}, settings() {} };
   for (const key of keys) paletteKey({ key, isComposing: false, keyCode: 0, metaKey: false, preventDefault() {} }, actions);
   const html = renderToStaticMarkup(<PaletteView style={style} query="fi" rows={rows} sel={sel} error="" onQuery={() => {}} onOpen={() => {}} />);
   return { sel, html: html.replace(`data-style="${style}"`, "") };

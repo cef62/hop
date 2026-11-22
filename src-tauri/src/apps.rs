@@ -31,7 +31,8 @@ pub struct Index {
 /// Levels below a root that can hold an app: `/Applications/X.app` and `/Applications/Vendor/X.app`.
 const DEPTH: usize = 2;
 
-pub fn roots() -> Vec<PathBuf> {
+/// The built-in roots, then the extra folders from Settings.
+pub fn roots(extra: &[String]) -> Vec<PathBuf> {
     let mut r: Vec<PathBuf> = ["/Applications", "/System/Applications", "/System/Applications/Utilities", "/Applications/Utilities"]
         .into_iter()
         .map(PathBuf::from)
@@ -39,7 +40,19 @@ pub fn roots() -> Vec<PathBuf> {
     if let Some(home) = std::env::var_os("HOME") {
         r.push(Path::new(&home).join("Applications"));
     }
+    r.extend(extra.iter().map(PathBuf::from));
     r
+}
+
+/// `apps` without the ones on the ignore list, matched by the path as indexed or as resolved (the picker can return
+/// either side of a symlink).
+pub fn without_ignored(apps: Vec<App>, ignored: &[String]) -> Vec<App> {
+    if ignored.is_empty() {
+        return apps;
+    }
+    let real = |p: &str| std::fs::canonicalize(p).ok().map(|c| c.to_string_lossy().into_owned());
+    let ignored: HashSet<String> = ignored.iter().flat_map(|p| [Some(p.clone()), real(p)]).flatten().collect();
+    apps.into_iter().filter(|a| !ignored.contains(&a.path) && !real(&a.path).is_some_and(|r| ignored.contains(&r))).collect()
 }
 
 fn is_app(p: &Path) -> bool {
@@ -113,9 +126,15 @@ fn relevant(path: &Path, roots: &[PathBuf]) -> bool {
     roots.iter().any(|r| path.strip_prefix(r).is_ok_and(|rest| rest.components().count() <= DEPTH && !in_bundle(rest)))
 }
 
-/// Rescans and publishes the result: the state for `list_apps`, the event for a running frontend.
+/// One scan at a time: two quick Settings changes must not publish their scans out of order.
+static SCANNING: Mutex<()> = Mutex::new(());
+
+/// Rescans with the current Settings and publishes the result: the state for `list_apps`, the event for a running
+/// frontend.
 fn refresh(app: &AppHandle) {
-    let apps = index(&roots());
+    let _one = SCANNING.lock().unwrap();
+    let s = crate::settings::current(app);
+    let apps = without_ignored(index(&roots(&s.extra_folders)), &s.ignored_apps);
     let snapshot = {
         let state = app.state::<Mutex<Index>>();
         let mut idx = state.lock().unwrap();
@@ -163,20 +182,41 @@ fn watch(roots: &[PathBuf], on_change: impl Fn() + Send + 'static) -> notify::Re
     Ok(watcher)
 }
 
+/// The live watcher. Replacing it drops the old one, which ends its thread.
+type Watching = Mutex<Option<RecommendedWatcher>>;
+
+fn rewatch(app: &AppHandle) {
+    let refresher = app.clone();
+    let w = match watch(&roots(&crate::settings::current(app).extra_folders), move || refresh(&refresher)) {
+        Ok(w) => Some(w),
+        Err(e) => {
+            eprintln!("hop: app watcher failed ({e}); new apps appear after a restart");
+            None
+        }
+    };
+    *app.state::<Watching>().lock().unwrap() = w;
+}
+
 /// Starts the first scan and the watcher off the main thread, so neither delays the hotkey or the first show.
 pub fn setup(app: &AppHandle) {
     app.manage(Mutex::new(Index::default()));
+    app.manage(Watching::default());
     let app = app.clone();
     std::thread::spawn(move || {
         let t = std::time::Instant::now();
         refresh(&app);
         eprintln!("hop: indexed {} apps in {} ms", app.state::<Mutex<Index>>().lock().unwrap().apps.len(), t.elapsed().as_millis());
-        let refresher = app.clone();
-        match watch(&roots(), move || refresh(&refresher)) {
-            Ok(w) => {
-                app.manage(w); // kept for the app's lifetime
-            }
-            Err(e) => eprintln!("hop: app watcher failed ({e}); new apps appear after a restart"),
+        rewatch(&app);
+    });
+}
+
+/// After Settings changed the extra folders (`folders`, which also re-targets the watcher) or the ignore list.
+pub fn reload(app: &AppHandle, folders: bool) {
+    let app = app.clone();
+    std::thread::spawn(move || {
+        refresh(&app);
+        if folders {
+            rewatch(&app);
         }
     });
 }
@@ -288,6 +328,28 @@ mod tests {
         }
         rx.recv_timeout(Duration::from_secs(5)).expect("no rescan after new apps");
         assert!(rx.recv_timeout(Duration::from_millis(1500)).is_err(), "one burst rescanned more than once");
+    }
+
+    #[test]
+    fn ignored_apps_leave_the_index_by_either_path() {
+        let tmp = tempfile::tempdir().unwrap();
+        let real = tmp.path().join("real/Tool.app");
+        mkapp(&real);
+        std::os::unix::fs::symlink(&real, tmp.path().join("Tool.app")).unwrap();
+        let entry = |p: &Path| app_entry(p, "");
+        let apps = vec![entry(&tmp.path().join("Tool.app")), entry(Path::new("/Applications/Safari.app")), entry(Path::new("/Applications/Mail.app"))];
+        let paths = |v: Vec<App>| v.into_iter().map(|a| a.name).collect::<Vec<_>>();
+        assert_eq!(paths(without_ignored(apps.clone(), &[])), ["Tool", "Safari", "Mail"]);
+        assert_eq!(paths(without_ignored(apps.clone(), &["/Applications/Mail.app".into()])), ["Tool", "Safari"]);
+        // ignored through the link's target, indexed through the link
+        assert_eq!(paths(without_ignored(apps, &[real.to_string_lossy().into()])), ["Safari", "Mail"]);
+    }
+
+    #[test]
+    fn extra_folders_join_the_roots() {
+        let r = roots(&["/Volumes/Apps".into()]);
+        assert_eq!(r[0], Path::new("/Applications"));
+        assert_eq!(r.last().unwrap(), Path::new("/Volumes/Apps"));
     }
 
     #[test]
