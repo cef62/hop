@@ -26,6 +26,11 @@ const cases: [string, string | null][] = [
   ["0.1+0.2", "0.3"],
   ["1/3", "0.333333333333"],
   ["2/3", "0.666666666667"],
+  // integers within 2^53 stay exact, beyond it they round
+  ["1234567890123+1", "1234567890124"],
+  ["12345678*98764", "1219308541992"],
+  ["1732300012345+1000", "1732300013345"], // a timestamp in ms
+  ["2^53+1", "9007199254740000"],
   ["0-0*5", "0"],
   ["-0*1", "0"],
   // exponent form for huge and tiny results
@@ -62,6 +67,7 @@ const cases: [string, string | null][] = [
   ["", null],
   ["   ", null],
   [`1${"+1".repeat(99)}`, "100"], // 199 characters
+  [`11${"+1".repeat(99)}`, "110"], // 200 characters
   [`1${"+1".repeat(100)}`, null], // 201 characters
   [`${"(".repeat(98)}1+1${")".repeat(98)}`, "2"], // deep nesting within the cap
 ];

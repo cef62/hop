@@ -35,6 +35,15 @@ type ViewProps = {
 /** The card. Both styles render the same markup; `data-style` only switches CSS variables and the footer rule. */
 /** What row `i` of the list is: the calculator result (row 0 when there is one) or an app. */
 export const rowAt = (i: number, result: string | null | undefined, rows: App[]) => (result == null ? rows[i] : i === 0 ? result : rows[i - 1]);
+export const total = (rows: App[], result: string | null) => rows.length + (result === null ? 0 : 1);
+
+/** The command Enter (⌘Enter: `reveal`) sends for row `i`. The result row copies (there is nothing to reveal) and so
+ * records no launch. */
+export function command(i: number, result: string | null, rows: App[], reveal: boolean): [string, Record<string, unknown>] | null {
+  const r = rowAt(i, result, rows);
+  if (typeof r === "string") return ["copy_text", { text: r }];
+  return r ? ["launch", { path: r.path, reveal }] : null;
+}
 
 export function PaletteView({ style, query, rows, result, sel, error, cmd, update, onQuery, onOpen, onUpdate, input, card, list }: ViewProps) {
   const off = result == null ? 0 : 1;
@@ -115,7 +124,7 @@ export function PaletteView({ style, query, rows, result, sel, error, cmd, updat
       )}
       <div className="footer">
         <span className="keys" aria-hidden="true">
-          ↵ open · ⌘↵ reveal in Finder · ⌘1–9 open · esc close
+          {typeof rowAt(sel, result, rows) === "string" ? "↵ copy · ⌘1–9 open · esc close" : "↵ open · ⌘↵ reveal in Finder · ⌘1–9 open · esc close"}
         </span>
         {update && (
           // not a Tab stop (the input keeps the focus): ⌘U is its key
@@ -146,14 +155,12 @@ export function Palette() {
   const items = useMemo(() => prepare(index.apps), [index]);
   const rows = useMemo(() => search(query, items, frecency), [query, items, frecency]);
   const result = useMemo(() => calc(query), [query]);
-  const count = rows.length + (result === null ? 0 : 1);
+  const count = total(rows, result);
   const at = Math.min(sel, Math.max(count - 1, 0)); // the list can shrink under the selection (app removed)
 
-  // the result row copies (⌘Enter too: there is nothing to reveal) and records no launch
   const open = (i: number, reveal = false) => {
-    const r = rowAt(i, result, rows);
-    if (typeof r === "string") invoke("copy_text", { text: r }).catch((e) => setError(String(e)));
-    else if (r) invoke("launch", { path: r.path, reveal }).catch((e) => setError(String(e)));
+    const c = command(i, result, rows, reveal);
+    if (c) invoke(...c).catch((e) => setError(String(e)));
   };
   const actions = useRef<Actions>(null!);
   actions.current = {

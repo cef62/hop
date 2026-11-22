@@ -57,7 +57,7 @@ What would confirm it (owner's Mac, Settings open behind another app X, palette 
 - Accessible name "Result 14, press Enter to copy".
 - Out of scope: units, currency, variables.
 - Tests: parser table with edge cases; palette row; Rust command input cap. Docs: README, site Usage section, home card.
-- As built: `copy_text` hides the palette itself after a successful copy, like `launch` does, so a copy and its hide are one call and a failure keeps the palette open with the error. It also refuses empty text (an empty copy would only wipe the clipboard). The listbox is now named "Results", since it holds more than apps. The home page's cards shrink to fit five in a row.
+- As built: `copy_text` hides the palette itself after a successful copy, like `launch` does, so a copy and its hide are one call and a failure keeps the palette open with the error. It also refuses empty text (an empty copy would only wipe the clipboard). The listbox is now named "Results", since it holds more than apps. The home page's cards shrink to fit five in a row. Integers up to 2^53 stay exact (review round 1: 12-digit rounding changed `1234567890123+1`); only other results round to 12 significant digits.
 
 ## After PR 3
 

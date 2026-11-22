@@ -4,7 +4,8 @@ const MAX = 200;
 /**
  * The query as a maths expression: `+ - * / % ^`, parentheses, unary minus and plus, `×` and `÷`. Null unless the whole
  * query parses and has a binary operator, so a bare number ("2024", "-5") stays an app search, and for a non-finite
- * result (÷0, overflow). Rounded to 12 significant digits; huge and tiny results show in exponent form ("1e+21").
+ * result (÷0, overflow). Integers up to 2^53 are exact; anything else rounds to 12 significant digits (hiding float noise
+ * such as 0.1+0.2), and huge and tiny results show in exponent form ("1e+21").
  * shortcut: `.` is the only decimal separator (no "1,5"), add a locale-aware tokenizer if users ask.
  */
 export function calc(query: string): string | null {
@@ -45,5 +46,5 @@ export function calc(query: string): string | null {
 
   const v = expr();
   if (bad || i < t.length || !ops || !Number.isFinite(v)) return null;
-  return String(Number(v.toPrecision(12))); // String(-0) is "0"
+  return String(Number.isSafeInteger(v) ? v : Number(v.toPrecision(12))); // String(-0) is "0"
 }

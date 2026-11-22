@@ -1,6 +1,6 @@
 import { expect, test, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { PaletteView, rowAt, type Style } from "./Palette";
+import { command, PaletteView, rowAt, total, type Style } from "./Palette";
 import { paletteKey } from "./keys";
 import { move, prepare, search, type App } from "./rank";
 
@@ -79,6 +79,16 @@ test("a calculator result is row 0: it copies, the apps follow it, and ⌘N and 
   expect(rowAt(1, "14", rows)).toBe(rows[0]);
   expect(rowAt(rows.length, "14", rows)).toBe(rows[rows.length - 1]);
   expect(rowAt(0, null, rows)).toBe(rows[0]);
+  expect(total(rows, "14")).toBe(rows.length + 1);
+  expect(total(rows, null)).toBe(rows.length);
+  // Enter and ⌘Enter on the result copy, an app row launches (⌘Enter reveals), past the end does nothing
+  expect(command(0, "14", rows, true)).toEqual(["copy_text", { text: "14" }]);
+  expect(command(1, "14", rows, true)).toEqual(["launch", { path: rows[0].path, reveal: true }]);
+  expect(command(0, null, rows, false)).toEqual(["launch", { path: rows[0].path, reveal: false }]);
+  expect(command(rows.length + 1, "14", rows, false)).toBeNull();
+  // the footer names the selected row's Enter action
+  expect(first).toContain('<span class="keys" aria-hidden="true">↵ copy · ⌘1–9 open · esc close</span>');
+  expect(second).toContain('<span class="keys" aria-hidden="true">↵ open · ⌘↵ reveal in Finder · ⌘1–9 open · esc close</span>');
 });
 
 test("a result shows the list even when no app matches", () => {

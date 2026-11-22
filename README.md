@@ -22,7 +22,8 @@ hop has no Dock icon: press **⌥Space** (the default hotkey) or click its menu-
   numbers).
 - Calculator: type a sum such as `2+3*4` and the answer shows above the apps; **Enter** (or **⌘1**) copies it and
   hides the palette, ready to paste. It takes `+ - * / % ^` (`%` is the remainder), parentheses and decimals with a
-  `.`; `×` and `÷` work too. A bare number such as `2024` stays an app search.
+  `.`; `×` and `÷` work too. A bare number such as `2024` stays an app search. Whole numbers of up to 15 digits are exact; others
+  round to 12 significant digits.
 - hop finds apps in `/Applications`, `/System/Applications`, their `Utilities` folders and `~/Applications`, one
   folder deep (vendor folders work), and picks up installed or removed apps by itself.
 - **Esc**, or clicking away, hides it and returns focus to the app you were in.
