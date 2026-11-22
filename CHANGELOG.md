@@ -1,5 +1,11 @@
 # hop
 
+## 0.1.1
+
+### Patch Changes
+
+- 197aa6f: Documented how to install hop from a release and get past the first-launch Gatekeeper block.
+
 ## 0.1.0
 
 ### Minor Changes
