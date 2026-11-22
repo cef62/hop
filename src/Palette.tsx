@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+import { calc } from "./calc";
 import { paletteKey, type Actions } from "./keys";
 import { move, prepare, search, type App, type Frecency } from "./rank";
 
@@ -15,6 +16,8 @@ type ViewProps = {
   style: Style;
   query: string;
   rows: App[];
+  /** the calculator's answer to the query: a row above the apps, so row indexes count it */
+  result?: string | null;
   sel: number;
   error: string;
   /** ⌘ is held: rows 1–9 show their ⌘N key in place of "↵ open" */
@@ -30,7 +33,41 @@ type ViewProps = {
 };
 
 /** The card. Both styles render the same markup; `data-style` only switches CSS variables and the footer rule. */
-export function PaletteView({ style, query, rows, sel, error, cmd, update, onQuery, onOpen, onUpdate, input, card, list }: ViewProps) {
+/** What row `i` of the list is: the calculator result (row 0 when there is one) or an app. */
+export const rowAt = (i: number, result: string | null | undefined, rows: App[]) => (result == null ? rows[i] : i === 0 ? result : rows[i - 1]);
+export const total = (rows: App[], result: string | null) => rows.length + (result === null ? 0 : 1);
+
+/** The command Enter (⌘Enter: `reveal`) sends for row `i`. The result row copies (there is nothing to reveal) and so
+ * records no launch. */
+export function command(i: number, result: string | null, rows: App[], reveal: boolean): [string, Record<string, unknown>] | null {
+  const r = rowAt(i, result, rows);
+  if (typeof r === "string") return ["copy_text", { text: r }];
+  return r ? ["launch", { path: r.path, reveal }] : null;
+}
+
+export function PaletteView({ style, query, rows, result, sel, error, cmd, update, onQuery, onOpen, onUpdate, input, card, list }: ViewProps) {
+  const off = result == null ? 0 : 1;
+  const count = rows.length + off;
+  const option = (i: number) => ({
+    id: `row-${i}`,
+    className: "row",
+    role: "option",
+    "aria-selected": i === sel,
+    "aria-keyshortcuts": i < 9 ? `Meta+${i + 1}` : undefined,
+    onClick: () => onOpen(i),
+  });
+  const hint = (i: number, label: string) =>
+    cmd && i < 9 ? (
+      <span className="hint" aria-hidden="true">
+        ⌘{i + 1}
+      </span>
+    ) : (
+      i === sel && (
+        <span className="hint" aria-hidden="true">
+          ↵<span className="hint-label"> {label}</span>
+        </span>
+      )
+    );
   return (
     <div className="card" data-style={style} data-update={update ? "" : undefined} ref={card}>
       <label className="search-row">
@@ -46,7 +83,7 @@ export function PaletteView({ style, query, rows, sel, error, cmd, update, onQue
           placeholder="Search apps"
           aria-label="Search apps"
           aria-controls="rows"
-          aria-activedescendant={rows.length ? `row-${sel}` : undefined}
+          aria-activedescendant={count ? `row-${sel}` : undefined}
           autoFocus
           spellCheck={false}
           autoComplete="off"
@@ -57,14 +94,19 @@ export function PaletteView({ style, query, rows, sel, error, cmd, update, onQue
           {error}
         </p>
       )}
-      {rows.length > 0 && (
-        <ul className="rows" id="rows" role="listbox" aria-label="Apps" ref={list}>
-          {rows.map((a, i) => (
-            <li key={a.path} id={`row-${i}`} className="row" role="option"
-              aria-selected={i === sel}
-              aria-keyshortcuts={i < 9 ? `Meta+${i + 1}` : undefined}
-              onClick={() => onOpen(i)}
-            >
+      {count > 0 && (
+        <ul className="rows" id="rows" role="listbox" aria-label="Results" ref={list}>
+          {result != null && (
+            <li key="=" {...option(0)} aria-label={`Result ${result}, press Enter to copy`}>
+              <span className="icon calc" aria-hidden="true">
+                =
+              </span>
+              <span className="name">= {result}</span>
+              {hint(0, "copy")}
+            </li>
+          )}
+          {rows.map((a, j) => (
+            <li key={a.path} {...option(j + off)}>
               <span className="icon">
                 <img
                   src={convertFileSrc(a.path, "icon")}
@@ -75,24 +117,14 @@ export function PaletteView({ style, query, rows, sel, error, cmd, update, onQue
                 />
               </span>
               <span className="name">{a.name}</span>
-              {cmd && i < 9 ? (
-                <span className="hint" aria-hidden="true">
-                  ⌘{i + 1}
-                </span>
-              ) : (
-                i === sel && (
-                  <span className="hint" aria-hidden="true">
-                    ↵<span className="hint-label"> open</span>
-                  </span>
-                )
-              )}
+              {hint(j + off, "open")}
             </li>
           ))}
         </ul>
       )}
       <div className="footer">
         <span className="keys" aria-hidden="true">
-          ↵ open · ⌘↵ reveal in Finder · ⌘1–9 open · esc close
+          {typeof rowAt(sel, result, rows) === "string" ? "↵ copy · ⌘1–9 open · esc close" : "↵ open · ⌘↵ reveal in Finder · ⌘1–9 open · esc close"}
         </span>
         {update && (
           // not a Tab stop (the input keeps the focus): ⌘U is its key
@@ -122,16 +154,18 @@ export function Palette() {
 
   const items = useMemo(() => prepare(index.apps), [index]);
   const rows = useMemo(() => search(query, items, frecency), [query, items, frecency]);
-  const at = Math.min(sel, Math.max(rows.length - 1, 0)); // the list can shrink under the selection (app removed)
+  const result = useMemo(() => calc(query), [query]);
+  const count = total(rows, result);
+  const at = Math.min(sel, Math.max(count - 1, 0)); // the list can shrink under the selection (app removed)
 
   const open = (i: number, reveal = false) => {
-    const a = rows[i];
-    if (a) invoke("launch", { path: a.path, reveal }).catch((e) => setError(String(e)));
+    const c = command(i, result, rows, reveal);
+    if (c) invoke(...c).catch((e) => setError(String(e)));
   };
   const actions = useRef<Actions>(null!);
   actions.current = {
     hide: () => invoke("hide_palette"),
-    move: (d) => setSel(move(at, d, rows.length)),
+    move: (d) => setSel(move(at, d, count)),
     open: (reveal) => open(at, reveal),
     openAt: (i) => open(i),
     settings: () => invoke("open_settings"),
@@ -215,6 +249,7 @@ export function Palette() {
       style={style}
       query={query}
       rows={rows}
+      result={result}
       sel={at}
       error={error}
       cmd={cmd}

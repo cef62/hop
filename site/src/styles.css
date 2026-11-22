@@ -82,7 +82,7 @@ kbd { border: 1px solid var(--line); border-bottom-width: 2px; white-space: nowr
 .shot.narrow img { max-width: min(100%, 440px); }
 .shot figcaption { color: var(--muted); font-size: 14px; margin-top: 10px; }
 
-.cards { list-style: none; margin: 40px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px; }
+.cards { list-style: none; margin: 40px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 16px; }
 .cards li { background: var(--code-bg); border-radius: 14px; padding: 18px 20px; }
 .cards h2 { font-size: 18px; margin: 0 0 6px; }
 .cards p { margin: 0; color: var(--muted); font-size: 16px; }

@@ -208,3 +208,11 @@ body {
 .pill span {
   color: var(--text-dim);
 }
+
+/* the calculator row's glyph, in place of an app icon */
+.icon.calc {
+  display: grid;
+  place-items: center;
+  font-size: calc(var(--icon-size) * 0.6);
+  color: var(--text-dim);
+}

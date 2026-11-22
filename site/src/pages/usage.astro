@@ -7,6 +7,7 @@ const toc = [
   ['install', 'Install'],
   ['open', 'Open hop'],
   ['search', 'Search and launch'],
+  ['calculator', 'Calculator'],
   ['shortcuts', 'Keyboard shortcuts'],
   ['settings', 'Settings'],
   ['updates', 'Updates'],
@@ -17,6 +18,7 @@ const keys = [
   ['Enter', 'Open the selected app.'],
   ['⌘Enter', 'Reveal the selected app in Finder.'],
   ['⌘1 … ⌘9', 'Open the Nth result directly. Hold ⌘ to see the numbers.'],
+  ['Enter on a result', 'Copy the calculator’s answer and hide the palette.'],
   ['Esc', 'Hide the palette and return to your app. Also closes Settings.'],
   ['⌘,', 'Open Settings from the palette.'],
   ['⌘U', 'Open What’s new when an update pill shows.'],
@@ -82,6 +84,17 @@ const keys = [
           <li>New and removed apps are picked up by themselves.</li>
         </ul>
         <p>Press <kbd>Esc</kbd> or click away to hide the palette. Focus returns to the app you were in.</p>
+      </section>
+
+      <section id="calculator">
+        <h2>Calculator</h2>
+        <ul>
+          <li>Type a sum such as <code>2+3*4</code>. The answer, <code>= 14</code>, shows above the apps.</li>
+          <li>It takes <code>+ - * / % ^</code> (<code>%</code> is the remainder), parentheses, and decimals with a <code>.</code>. <code>×</code> and <code>÷</code> work too.</li>
+          <li>Press <kbd>Enter</kbd> or <kbd>⌘1</kbd> to copy the answer. The palette hides, so you can paste it in your app.</li>
+          <li>A bare number such as <code>2024</code> stays an app search, and so does <code>1password</code>.</li>
+          <li>Whole numbers up to 9007199254740991 are exact. Other answers round to 12 significant digits. Very large or small answers show in exponent form, like <code>9.00719925474e+15</code>, so a rounded answer never looks exact.</li>
+        </ul>
       </section>
 
       <section id="shortcuts">

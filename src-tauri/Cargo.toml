@@ -25,7 +25,7 @@ tauri-plugin-updater = "2.14.1"
 [target.'cfg(target_os = "macos")'.dependencies]
 # the versions tauri already pulls in
 objc2 = "0.6.5"
-objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "NSBitmapImageRep", "NSGraphics", "NSGraphicsContext", "NSImage", "NSImageRep", "NSResponder", "NSRunningApplication", "NSView", "NSWindow", "NSWorkspace", "libc"] }
+objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "NSBitmapImageRep", "NSGraphics", "NSGraphicsContext", "NSImage", "NSImageRep", "NSPasteboard", "NSResponder", "NSRunningApplication", "NSView", "NSWindow", "NSWorkspace", "libc"] }
 objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSData", "NSDictionary", "NSFileManager", "NSGeometry", "NSString"] }
 
 [dev-dependencies]
