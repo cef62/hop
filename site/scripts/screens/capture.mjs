@@ -31,6 +31,15 @@ for (const scheme of ['light', 'dark']) {
   await p.fill('.search', 'sa');
   await p.waitForTimeout(300);
   await shoot(`palette-results-${scheme}.jpg`);
+  await p.fill('.search', '12*7+3');
+  await p.waitForTimeout(300);
+  await shoot(`palette-calc-${scheme}.jpg`);
+  // ⌘ alone only toggles the number hints; nothing runs until a second key
+  await p.fill('.search', 'ma');
+  await p.keyboard.down('Meta');
+  await p.waitForTimeout(300);
+  await shoot(`palette-cmd-${scheme}.jpg`);
+  await p.keyboard.up('Meta');
 
   // settings and what's new: capture the page at the real window size, then wrap it in a window frame
   for (const [name, page, w, h, title] of [['settings', 'settings.html', 520, 720, 'Settings'], ['whatsnew', 'whatsnew.html', 520, 560, "What's new"]]) {

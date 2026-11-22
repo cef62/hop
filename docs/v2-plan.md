@@ -82,3 +82,16 @@ Retrospectives, newest last.
 - Mutation checks in review paid off again (all visible mutations caught). DOM-only wiring (window listeners) stays a manual check; keep that wiring tiny.
 - Deferred: key repeat on ⌘N (same as Enter), late hints when the palette opens with ⌘ held.
 - Adjustments for PR 3: the brief lists the system-shortcut and clipboard constraints up front; the gate runs before each commit; the parser lives in its own pure module with a table test so mutation checks reach it.
+
+### After PR 3 (#18, merged 2026-11-22)
+
+- Three review rounds (two FAIL, one PASS). Both Majors were the same class: number formatting that looks exact but is not (12-digit rounding of 13+ digit integers, then plain output beyond 2^53). The plan itself specified "round to 12 significant digits" without thinking through integers: the flaw was in the plan, not only the code.
+- Lesson: for any formatter or parser, the plan and the brief list the boundary classes up front (safe-integer limit, exponent switch, negative, tiny) and the test table covers each boundary on both sides. A fresh reviewer with a fuzz found what the table missed; ask implementers for a quick fuzz on numeric code.
+- Pure seams (`total`, `command`, `rowAt`) made the palette wiring testable without a DOM; two call sites remain manual checks.
+- Deferred: float precision through intermediates past 2^53 (`shortcut:` comment in `src/calc.ts`).
+- Round 3 was narrowed to the fix and ran on Sonnet: cheaper, and enough.
+
+### Final (after the screenshot PR)
+
+- What worked: small PRs, attack lists with mutation checks, fixing a small Major inline instead of another agent round trip, narrowing late review rounds.
+- What to change next time: think through boundary classes in the plan for numeric features; run the gate before each commit; check new shortcuts against macOS system shortcuts first.
