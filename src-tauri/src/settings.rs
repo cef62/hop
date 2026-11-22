@@ -1,7 +1,8 @@
-//! Settings (plan §5) in `settings.json`, app config dir. Versioned; a missing file, unknown keys and keys with a wrong
-//! type or value read as defaults, one key at a time; a file that is not a JSON object is kept as `settings.json.corrupt`
-//! and hop starts from defaults. Written atomically. Start at login is not stored here: the LaunchAgent is the truth
-//! (`login.rs`), as in velo.
+//! Settings (plan §5) in `settings.json`, app config dir. Versioned; keys with a wrong type or value read as defaults,
+//! one key at a time; keys hop does not know (a newer version's) are kept and written back. A file that is not UTF-8
+//! JSON is kept as `settings.json.corrupt` and hop starts from defaults. Written atomically. Start at login itself is not
+//! stored here: the LaunchAgent is the truth (`login.rs`), as in velo; `loginApplied` only records that the first run
+//! turned it on.
 
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -30,6 +31,11 @@ pub struct Settings {
     pub palette_style: String,
     /// stored only until M5's updater reads it
     pub daily_update_check: bool,
+    /// start at login was turned on by a first run (or must be left alone); never set from the window
+    pub login_applied: bool,
+    /// keys this version does not know, written back as they were
+    #[serde(flatten)]
+    pub other: serde_json::Map<String, Value>,
 }
 
 impl Default for Settings {
@@ -42,6 +48,8 @@ impl Default for Settings {
             theme: "system".into(),
             palette_style: "compact".into(),
             daily_update_check: true,
+            login_applied: false,
+            other: Default::default(),
         }
     }
 }
@@ -53,20 +61,44 @@ impl Settings {
             && STYLES.contains(&self.palette_style.as_str())
             && crate::hotkey::valid(&self.hotkey)
             && abs(&self.extra_folders)
+            && !self.extra_folders.iter().any(|f| too_broad(f))
             && abs(&self.ignored_apps)
     }
 }
 
+/// A folder whose two-level scan and recursive watch would cover the whole disk or every user's files.
+pub fn too_broad(folder: &str) -> bool {
+    let home = std::env::var_os("HOME").map(PathBuf::from);
+    let p = Path::new(folder);
+    ["/", "/Users", "/Volumes"].iter().any(|b| p == Path::new(b)) || home.is_some_and(|h| p == h)
+}
+
+/// What the window says when it sent a refused key.
+fn refusal(bad: &[String]) -> String {
+    if bad.iter().any(|k| k == "extraFolders") {
+        "hop does not index /, /Users, /Volumes or your home folder: pick the folder that holds the apps.".into()
+    } else {
+        format!("Not a valid value for {}", bad.join(", "))
+    }
+}
+
+/// Keys `merge` never takes: hop writes them itself.
+const OWN: [&str; 2] = ["version", "loginApplied"];
+
+fn known(k: &str) -> bool {
+    serde_json::to_value(Settings::default()).expect("settings serialize").get(k).is_some()
+}
+
 /// `patch`'s keys over `cur`, each taken only when it has the right type and a valid value; returns the keys refused
-/// (unknown keys and `version` are skipped, not refused).
+/// (unknown keys, `version` and `loginApplied` are skipped, not refused).
 pub fn merge(cur: &Settings, patch: &Value) -> (Settings, Vec<String>) {
     let mut out = cur.clone();
     let mut bad = vec![];
     for (k, v) in patch.as_object().into_iter().flatten() {
-        let mut json = serde_json::to_value(&out).expect("settings serialize");
-        if k == "version" || json.get(k).is_none() {
+        if OWN.contains(&k.as_str()) || !known(k) {
             continue;
         }
+        let mut json = serde_json::to_value(&out).expect("settings serialize");
         json[k] = v.clone();
         match serde_json::from_value::<Settings>(json) {
             Ok(s) if s.valid() => out = s,
@@ -77,25 +109,39 @@ pub fn merge(cur: &Settings, patch: &Value) -> (Settings, Vec<String>) {
     (out, bad)
 }
 
-/// The settings, and whether start at login still has to be applied: no file, or one from before M3 (no `version`).
+/// The settings, and whether start at login still has to be applied: no file, or a file without `loginApplied` (from M2,
+/// or saved by a dev build that may not turn it on). A corrupt or unreadable file is no first run: hop starts from
+/// defaults and leaves start at login alone.
 pub fn load(path: &Path) -> (Settings, bool) {
-    let Ok(text) = std::fs::read_to_string(path) else { return (Settings::default(), true) };
-    match serde_json::from_str::<Value>(&text) {
-        Ok(v @ Value::Object(_)) => {
-            let (s, bad) = merge(&Settings::default(), &v);
+    let hands_off = Settings { login_applied: true, ..Settings::default() };
+    let bytes = match std::fs::read(path) {
+        Ok(b) => b,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return (Settings::default(), true),
+        Err(e) => {
+            // shortcut: a later save from Settings still replaces it; nothing at startup writes over it
+            eprintln!("hop: cannot read {} ({e}); started from defaults", path.display());
+            return (hands_off, false);
+        }
+    };
+    match serde_json::from_slice::<Value>(&bytes) {
+        Ok(Value::Object(obj)) => {
+            let (mut s, bad) = merge(&Settings::default(), &Value::Object(obj.clone()));
             if !bad.is_empty() {
                 eprintln!("hop: {} has invalid {}; using the defaults for those", path.display(), bad.join(", "));
             }
-            (s, v.get("version").is_none())
+            s.login_applied = obj.get("loginApplied").and_then(Value::as_bool).unwrap_or(false);
+            s.other = obj.into_iter().filter(|(k, _)| !known(k)).collect();
+            let first = !s.login_applied;
+            (s, first)
         }
         _ => {
-            // kept for the owner to look at; the next save writes a fresh file
+            // not UTF-8 JSON (`from_slice` checks both): kept for the owner to look at; the next save writes a fresh file
             let aside = path.with_extension("json.corrupt");
-            match std::fs::copy(path, &aside) {
-                Ok(_) => eprintln!("hop: {} is not valid; kept it as {} and started from defaults", path.display(), aside.display()),
+            match std::fs::write(&aside, &bytes) {
+                Ok(()) => eprintln!("hop: {} is not valid; kept it as {} and started from defaults", path.display(), aside.display()),
                 Err(e) => eprintln!("hop: {} is not valid and could not be kept aside ({e}); started from defaults", path.display()),
             }
-            (Settings::default(), false)
+            (hands_off, false)
         }
     }
 }
@@ -126,10 +172,16 @@ pub fn current(app: &AppHandle) -> Settings {
     app.state::<Mutex<Settings>>().lock().unwrap().clone()
 }
 
-/// Writes the current settings (after start at login was applied on a first run).
-pub fn persist(app: &AppHandle) {
+/// Records that the first run applied start at login, so later starts leave it to the user.
+pub fn mark_login_applied(app: &AppHandle) {
+    let s = {
+        let state = app.state::<Mutex<Settings>>();
+        let mut s = state.lock().unwrap();
+        s.login_applied = true;
+        s.clone()
+    };
     if let Some(f) = file(app)
-        && let Err(e) = save(&f, &current(app))
+        && let Err(e) = save(&f, &s)
     {
         eprintln!("hop: could not save {} ({e})", f.display());
     }
@@ -185,7 +237,7 @@ pub fn set_settings(app: AppHandle, patch: Value) -> Result<View, String> {
     let old = current(&app);
     let (new, bad) = merge(&old, &patch);
     if !bad.is_empty() {
-        return Err(format!("Not a valid value for {}", bad.join(", ")));
+        return Err(refusal(&bad));
     }
     let hotkey = new.hotkey != old.hotkey;
     if hotkey {
@@ -255,6 +307,11 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    /// Defaults for a file hop must not treat as a first run (corrupt or unreadable): start at login is left alone.
+    fn hands_off() -> Settings {
+        Settings { login_applied: true, ..Settings::default() }
+    }
+
     #[test]
     fn missing_file_is_defaults_and_a_first_run() {
         let tmp = tempfile::tempdir().unwrap();
@@ -262,7 +319,7 @@ mod tests {
         assert!(first);
         assert_eq!(s, Settings::default());
         assert_eq!((s.hotkey.as_str(), s.theme.as_str(), s.palette_style.as_str()), ("Alt+Space", "system", "compact"));
-        assert!(s.daily_update_check && s.extra_folders.is_empty() && s.ignored_apps.is_empty());
+        assert!(s.daily_update_check && s.extra_folders.is_empty() && s.ignored_apps.is_empty() && !s.login_applied);
     }
 
     #[test]
@@ -276,6 +333,7 @@ mod tests {
             theme: "dark".into(),
             palette_style: "roomy".into(),
             daily_update_check: false,
+            login_applied: true,
             ..Settings::default()
         };
         save(&p, &s).unwrap();
@@ -285,47 +343,79 @@ mod tests {
     }
 
     #[test]
-    fn m2_file_keeps_its_palette_style_and_counts_as_a_first_run() {
+    fn login_is_applied_until_a_file_says_it_was() {
         let tmp = tempfile::tempdir().unwrap();
         let p = tmp.path().join("settings.json");
-        std::fs::write(&p, r#"{"paletteStyle":"roomy"}"#).unwrap();
+        std::fs::write(&p, r#"{"paletteStyle":"roomy"}"#).unwrap(); // M2
         let (s, first) = load(&p);
         assert_eq!(s.palette_style, "roomy");
-        assert!(first, "no version: start at login has never been applied");
+        assert!(first);
+        // a dev build saved its settings (it may not turn login on): the installed app still has to
+        std::fs::write(&p, r#"{"version":1,"theme":"dark"}"#).unwrap();
+        assert!(load(&p).1);
+        std::fs::write(&p, r#"{"version":1,"loginApplied":true}"#).unwrap();
+        assert!(!load(&p).1);
     }
 
     #[test]
-    fn unknown_keys_and_bad_values_fall_back_one_key_at_a_time() {
+    fn unknown_keys_survive_a_save_and_bad_values_fall_back_one_key_at_a_time() {
         let tmp = tempfile::tempdir().unwrap();
         let p = tmp.path().join("settings.json");
-        let file = json!({"version": 1, "future": true, "theme": "sepia", "paletteStyle": 3, "hotkey": "Alt+Nope",
-            "extraFolders": ["relative/path"], "ignoredApps": ["/Applications/X.app"], "dailyUpdateCheck": false});
+        let file = json!({"version": 2, "future": {"a": 1}, "theme": "sepia", "paletteStyle": 3, "hotkey": "Alt+Nope",
+            "extraFolders": ["relative/path"], "ignoredApps": ["/Applications/X.app"], "dailyUpdateCheck": false, "loginApplied": true});
         std::fs::write(&p, file.to_string()).unwrap();
         let (s, first) = load(&p);
         assert!(!first);
-        assert_eq!(s, Settings { ignored_apps: vec!["/Applications/X.app".into()], daily_update_check: false, ..Settings::default() });
+        assert_eq!(s.other, serde_json::Map::from_iter([("future".to_string(), json!({"a": 1}))]));
+        assert_eq!(s, Settings { ignored_apps: vec!["/Applications/X.app".into()], daily_update_check: false, other: s.other.clone(), ..hands_off() });
+        let (s2, _) = merge(&s, &json!({"theme": "dark"}));
+        save(&p, &s2).unwrap();
+        let back: Value = serde_json::from_str(&std::fs::read_to_string(&p).unwrap()).unwrap();
+        assert_eq!((&back["future"], &back["theme"]), (&json!({"a": 1}), &json!("dark")));
     }
 
     #[test]
-    fn corrupt_file_is_kept_aside_and_reads_as_defaults() {
+    fn corrupt_file_is_kept_aside_and_reads_as_defaults_without_a_first_run() {
         let tmp = tempfile::tempdir().unwrap();
         let p = tmp.path().join("settings.json");
-        for bad in ["{not json", "[]", "null"] {
+        let latin1: &[u8] = b"{\"extraFolders\":[\"/Volumes/Caf\xe9\"]}";
+        for bad in [b"{not json".as_slice(), b"[]", b"null", latin1] {
             std::fs::write(&p, bad).unwrap();
-            assert_eq!(load(&p), (Settings::default(), false), "{bad}");
-            assert_eq!(std::fs::read_to_string(p.with_extension("json.corrupt")).unwrap(), bad);
+            assert_eq!(load(&p), (hands_off(), false), "{}", String::from_utf8_lossy(bad));
+            assert_eq!(std::fs::read(p.with_extension("json.corrupt")).unwrap(), bad);
         }
+    }
+
+    #[test]
+    fn unreadable_file_reads_as_defaults_without_a_first_run() {
+        let tmp = tempfile::tempdir().unwrap();
+        let p = tmp.path().join("settings.json");
+        std::fs::create_dir(&p).unwrap(); // EISDIR: as unreadable as EACCES, and testable as any user
+        assert_eq!(load(&p), (hands_off(), false));
+        assert!(!p.with_extension("json.corrupt").exists());
     }
 
     #[test]
     fn merge_reports_the_keys_it_refused() {
         let cur = Settings::default();
-        let (s, bad) = merge(&cur, &json!({"theme": "light", "hotkey": "Super+Shift+Space", "version": 7}));
+        let (s, bad) = merge(&cur, &json!({"theme": "light", "hotkey": "Super+Shift+Space", "version": 7, "loginApplied": true, "junk": 1}));
         assert_eq!((s.theme.as_str(), s.hotkey.as_str(), s.version), ("light", "Super+Shift+Space", VERSION));
-        assert!(bad.is_empty());
+        assert!(bad.is_empty() && !s.login_applied && s.other.is_empty(), "the window cannot set loginApplied or add keys");
         let (s, bad) = merge(&cur, &json!({"hotkey": "Space+Alt", "paletteStyle": "huge", "ignoredApps": "x", "dailyUpdateCheck": false}));
         assert_eq!(s, Settings { daily_update_check: false, ..cur.clone() });
         assert_eq!(bad, ["hotkey", "ignoredApps", "paletteStyle"]);
         assert_eq!(merge(&cur, &json!({"hotkey": ""})).0.hotkey, "", "no hotkey is allowed: the tray is the way in");
+    }
+
+    #[test]
+    fn extra_folders_refuse_the_whole_disk_and_home() {
+        let home = std::env::var("HOME").unwrap();
+        for f in ["/", "/Users", "/Users/", "/Volumes", home.as_str()] {
+            assert!(too_broad(f), "{f}");
+            assert_eq!(merge(&Settings::default(), &json!({"extraFolders": [f]})).1, ["extraFolders"], "{f}");
+        }
+        for f in ["/Volumes/Apps", "/opt/apps", &format!("{home}/Apps")] {
+            assert!(!too_broad(f), "{f}");
+        }
     }
 }

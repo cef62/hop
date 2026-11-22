@@ -95,7 +95,7 @@ pub fn run() {
                 eprintln!("hop: no menu-bar icon ({e})");
             }
             if login::startup(h, first_run) && first_run {
-                settings::persist(h); // records the first run as done
+                settings::mark_login_applied(h);
             }
             Ok(())
         })
