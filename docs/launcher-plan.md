@@ -218,7 +218,7 @@ Every milestone is its own feature branch and PR, runs the quality gate, has a c
 
 **M6, Release pipeline for real.** Secrets set, first public `v0.1.0`, install on the owner's Mac from the release, then ship a `v0.1.1` and confirm in-app update through the What's new dialog.
 
-**M7, Polish.** Visual pass against the minimal brief, accessibility (VoiceOver labels, focus order, reduced motion), README with install and Gatekeeper steps, memory/CPU report. Decide with the owner whether to add `docs:check` and e2e (Playwright, as velo has) or leave them out.
+**M7, Polish.** Visual pass against the minimal brief, accessibility (VoiceOver labels, focus order, reduced motion), README with install and Gatekeeper steps, memory/CPU report (`docs/perf-report.md`). Owner's decision (2026-11-22): no `docs:check` and no Playwright e2e for hop. The app is small, its riskiest behavior (panel, hotkey, focus return, vibrancy) is native and Playwright cannot drive it, and unit tests cover the logic.
 
 Docs site (owner request 2026-11-22): hop has a static documentation site on GitHub Pages (`site/`, Astro, workflow `.github/workflows/pages.yml`) built from `README.md` and `CHANGELOG.md`, with no live demo, recipes or e2e. Docs and release topics stay in the README and CHANGELOG; the site only renders them.
 

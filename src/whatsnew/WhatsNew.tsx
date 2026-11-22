@@ -26,7 +26,8 @@ function Items({ id, title, items, total }: { id: string; title: string; items: 
   return (
     <section aria-labelledby={id}>
       <h2 id={id}>{title}</h2>
-      <ul className="group items">
+      {/* role="list": WebKit drops list semantics from a list without bullets */}
+      <ul className="group items" role="list">
         {items.map((it, i) => (
           <li key={i} className="row">
             <strong>

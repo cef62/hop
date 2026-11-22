@@ -25,6 +25,7 @@ export function SettingsPage() {
   const [checking, setChecking] = useState(false);
   const [checkMsg, setCheckMsg] = useState("");
   const latest = useRef<View | null>(null);
+  const first = useRef<HTMLHeadingElement>(null);
   const queue = useRef(serial()).current;
 
   const show = (v: View) => {
@@ -62,6 +63,12 @@ export function SettingsPage() {
   useEffect(() => {
     reload();
   }, []);
+  // focus inside the page once it shows: with the focus on the web view itself, VoiceOver announces "HTML content"
+  // and waits for VO-Shift-Down instead of reading the window
+  const loaded = !!view;
+  useEffect(() => {
+    if (loaded) first.current?.focus();
+  }, [loaded]);
 
   // while recording, the recorder owns the keys
   // shortcut: the saved hotkey stays registered while recording, so pressing it toggles the palette instead of being
@@ -99,8 +106,9 @@ export function SettingsPage() {
   const toggle = { switch: "" };
   const list = (key: "extraFolders" | "ignoredApps", label: string, empty: string, add: string, kind: "folder" | "app") => (
     <div className="group" role="group" aria-label={label}>
-      {s[key].length ? (
-        <ul className="paths">
+      {s[key].length > 0 && (
+        // WebKit drops list semantics from a list without bullets: role="list" keeps "list, 2 items" for VoiceOver
+        <ul className="paths" role="list">
           {s[key].map((p) => (
             <li key={p} className="row">
               <span className="path" title={p}>
@@ -112,10 +120,9 @@ export function SettingsPage() {
             </li>
           ))}
         </ul>
-      ) : (
-        <p className="row note">{empty}</p>
       )}
-      <div className="row end">
+      <div className={s[key].length ? "row end" : "row"}>
+        {!s[key].length && <span className="note">{empty}</span>}
         <button type="button" onClick={() => pick(kind, key)}>
           {add}
         </button>
@@ -145,14 +152,17 @@ export function SettingsPage() {
       )}
 
       <section aria-labelledby="general">
-        <h2 id="general">General</h2>
+        <h2 id="general" ref={first} tabIndex={-1}>
+          General
+        </h2>
         <div className="group">
           <div className="row">
             <span id="hotkey-label">Hotkey</span>
             <button
               type="button"
+              id="hotkey"
               className="recorder"
-              aria-labelledby="hotkey-label"
+              aria-labelledby="hotkey-label hotkey"
               aria-describedby="hotkey-hint"
               onClick={() => (setRecording(true), setRecMsg(""))}
               onBlur={() => setRecording(false)}
@@ -175,7 +185,11 @@ export function SettingsPage() {
           </label>
           {view.loginRefusal && <p className="row note">{view.loginRefusal}</p>}
         </div>
-        {recMsg && <p className="error">{recMsg}</p>}
+        {recMsg && (
+          <p className="error" role="alert">
+            {recMsg}
+          </p>
+        )}
         {view.hotkeyError && (
           <p className="error" role="alert">
             The hotkey is not working: {view.hotkeyError}. Open hop from the menu-bar icon, or pick another shortcut.
