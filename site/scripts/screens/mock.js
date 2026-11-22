@@ -25,7 +25,8 @@
     settings: { hotkey: 'Alt+Space', extraFolders: ['/Users/me/Tools'], ignoredApps: ['/System/Applications/Stocks.app'], theme: 'system', paletteStyle: 'compact', dailyUpdateCheck: true },
     hotkeyError: null, login: true, loginRefusal: null, version: '0.1.2', update: null,
   };
-  const notes = '### Minor Changes\n\n- Added faster app indexing. New apps show up in the palette sooner.\n- Added a menu-bar tip on first launch. It tells you the hotkey.\n\n### Patch Changes\n\n- Fixed the palette appearing on the wrong screen after you unplug a display.\n- Made app icons load faster on first launch.\n\n---\n';
+  // the real 0.1.2 entry of CHANGELOG.md, as release-notes.mjs writes it (no commit hash)
+  const notes = '### Patch Changes\n\n- Made hop easier to read and to use with VoiceOver: dimmed text in the palette has more contrast, Settings starts reading at its first section and names the current hotkey, and Settings no longer leaves empty space below its content.\n\n---\n';
   let cbId = 0;
   const cbs = {};
   window.__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener() {} };
@@ -39,7 +40,7 @@
         case 'list_apps': return { generation: 1, apps: APPS };
         case 'frecency': return frecency;
         case 'get_settings': case 'set_settings': return view;
-        case 'whatsnew_info': return { update: { version: '0.2.0', current_version: '0.1.2', notes }, phase: { kind: 'idle' } };
+        case 'whatsnew_info': return { update: { version: '0.1.2', current_version: '0.1.1', notes }, phase: { kind: 'idle' } };
         default: return null;
       }
     },
