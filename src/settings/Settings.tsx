@@ -68,11 +68,12 @@ export function SettingsPage() {
     return () => window.removeEventListener("keydown", onKey, true);
   }, [recording]);
 
-  // Esc closes the window; while recording, the recorder's capture listener takes Esc first
+  // Esc closes the window; while recording, the recorder's capture listener takes Esc first, and a held Esc that
+  // cancelled a recording must not then close the window on its repeats
   useEffect(() => {
     if (recording) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !e.defaultPrevented) invoke("close_settings");
+      if (e.key === "Escape" && !e.repeat && !e.defaultPrevented) invoke("close_settings");
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);

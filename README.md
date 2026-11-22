@@ -11,6 +11,7 @@ A minimal macOS app launcher. Work in progress.
 - **Esc**, or clicking away, hides it and returns focus to the app you were in.
 - The menu-bar icon opens the palette or **Settings…**, and quits hop. It is always there, so hop stays reachable
   when another app holds the hotkey.
+- **⌘,** in the palette opens Settings; **Esc** closes Settings.
 - Settings: the hotkey (click it, press a new chord; ⌫ removes it, Esc cancels), start at login (on by default),
   extra folders to index, apps to hide, theme (System, Light, Dark) and palette style (Compact or Roomy). Changes
   apply at once. If another app (Raycast, Alfred) uses the same hotkey, both respond: change one of them.
