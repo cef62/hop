@@ -20,7 +20,7 @@ Reference project: `/Volumes/Dev/matteo/velo` (github.com/cef62/velo, same owner
 |---|---|---|
 | Shell | Tauri 2, Rust backend | Owner's stack; velo's updater, autostart, release pipeline carry over |
 | UI | React 19 + Vite, plain CSS using CSS variables | ~3 small screens; no component library |
-| Controls | [Sakuga VFX](https://github.com/finktheartist/sakuga-vfx) | Owner's requirement, **Settings and What's new windows only** (see §6) |
+| Controls | Native HTML controls styled to look like macOS (see §6) | Owner's decision (2026-11-22): Sakuga VFX was tried in M4 and dropped for its look |
 | Search | Fuzzy matching in the frontend (port `src/fuzzy.ts` from velo) | A few hundred apps: no IPC per keystroke, no Rust matcher crate |
 | Storage | One JSON file for settings, one JSON file for launch history (frecency) | No SQLite |
 | Package manager, Node, TypeScript, Vitest, Changesets | Same versions as velo's `package.json` | Mirror velo |
@@ -35,7 +35,7 @@ The new repo must feel identical to velo to work in. Do this in the first commit
 
 | velo file | Action |
 |---|---|
-| `AGENTS.md` | Copy. Keep the `caveman` and `ponytail` blocks and the `## Versioning` and `## Workflow` sections verbatim. **Rewrite `## Stack`**: React 19, Vite, plain CSS with `--sk-*` variables, Sakuga VFX controls loaded as classic scripts and never edited, no Panda/Park UI |
+| `AGENTS.md` | Copy. Keep the `caveman` and `ponytail` blocks and the `## Versioning` and `## Workflow` sections verbatim. **Rewrite `## Stack`**: React 19, Vite, plain CSS with CSS variables, native HTML controls, no component library |
 | `CLAUDE.md` | **New (velo has none).** Create it with the single line `@AGENTS.md` so Claude Code reads the same rules without a second copy. Verify Claude Code loads it; if the imported rules do not show up, inline them |
 | `.claude/settings.json` | Copy verbatim: plugins `caveman@caveman` and `ponytail@ponytail`, with their `extraKnownMarketplaces` |
 | `.claude/settings.local.json`, `.claude/worktrees/` | Do not copy. Add both to `.gitignore` |
@@ -76,9 +76,9 @@ These are generated copies of the caveman and ponytail blocks. Whenever the bloc
 
 | Label | Page | Purpose | Notes |
 |---|---|---|---|
-| `main` | `index.html` | The palette | Created at startup, **hidden, never destroyed**: show/hide only, so it appears instantly. Plain DOM, no Sakuga |
-| `settings` | `settings.html` | Settings | Normal titled window, opened on request, closed (destroyed) when dismissed. Loads Sakuga |
-| `whatsnew` | `whatsnew.html` | Release notes and install | Port velo's `whatsnew.rs` + `src/whatsnew/` + `capabilities/whatsnew.json`, including the `allowed()` command guard. Loads Sakuga |
+| `main` | `index.html` | The palette | Created at startup, **hidden, never destroyed**: show/hide only, so it appears instantly. Plain DOM |
+| `settings` | `settings.html` | Settings | Normal titled window, opened on request, closed (destroyed) when dismissed |
+| `whatsnew` | `whatsnew.html` | Release notes and install | Port velo's `whatsnew.rs` + `src/whatsnew/` + `capabilities/whatsnew.json`, including the `allowed()` command guard |
 
 Each window gets its own capability file listing exactly what it uses. Custom commands are guarded per window label in Rust (`allowed`) the way velo does it, because capabilities do not restrict custom commands.
 
@@ -137,7 +137,7 @@ Implementation options to evaluate in the spike, in order: Tauri's own window AP
 
 ### 4.10 Palette styles
 
-Two styles ship in v1, switchable in Settings → Appearance (Sakuga Tabs or Radio), default **Compact**. They share all logic (search, selection, keys, footer content) and differ only in CSS variables and one footer rule, so keep them as one component with a `data-style="compact|roomy"` attribute on the root, not two components.
+Two styles ship in v1, switchable in Settings → Appearance (radio buttons), default **Compact**. They share all logic (search, selection, keys, footer content) and differ only in CSS variables and one footer rule, so keep them as one component with a `data-style="compact|roomy"` attribute on the root, not two components.
 
 | | Compact (default, "A") | Roomy ("B") |
 |---|---|---|
@@ -167,27 +167,19 @@ Updates: check for updates now · daily check on/off · current version.
 
 Nothing else. Settings apply live where possible; the file lives in the app config dir. Reuse velo's `settings.rs` shape (versioned, tolerant of unknown keys, atomic write).
 
-## 6. Sakuga VFX rules
+## 6. Look of the Settings and What's new windows
 
-Facts from the library's docs (re-read `https://sakuga-vfx.vercel.app/llms.txt` before use):
-- Each control is one plain script that registers a custom element. Load with a normal `<script>` tag, **not as a module**. Never edit, split or minify the files; they are self-contained. Vendor them into `public/sakuga-vfx/` (the shadcn CLI installs there: `npx shadcn add finktheartist/sakuga-vfx/NAME`) and pin the commit in a `VENDOR.md`.
-- All controls draw on **one shared full-page canvas** with one animation loop. The toggle file is about 500 KB because it embeds animation frames.
-- Value controls (toggle, slider, checkbox, radio, input, rating) work in forms and fire `change`/`input`. Button: `click`, then `el.done()`. Progress: `el.set(0..1)` and the `sakuga:done` event. Toast: `el.show(text)`. Colors come from `--sk-*` CSS variables, overridable in `:root`. Effects respect reduced motion.
-- Dark/light behavior, React/TypeScript typing and performance are **not documented**. Treat them as unknown.
-
-Rules for this app:
-1. **The palette window uses no Sakuga.** Plain `<input>` and a plain list. Reason: first-show latency, idle CPU from the animation loop, typing/IME/focus behavior of a custom-element input.
-2. Sakuga loads only in `settings.html` and `whatsnew.html`.
-3. Map: Toggle → start at login, daily check. Tabs → Settings sections. Button → check now, install, close. Slider → none needed. Input → folder paths. Progress → update download. Toast → "Saved", "Hotkey taken". Tooltip → hotkey conflict explanation.
-4. Add a thin typed React wrapper per control used (props to attributes, `change` event to callback, JSX typings in a `sakuga.d.ts`). Wrappers never touch Sakuga's files.
-5. Define the `--sk-*` variables from this app's own light and dark palette in `:root`, switching with `prefers-color-scheme` (and the Settings theme override). Test both.
-6. **M4 acceptance includes measurements**: idle CPU of the Settings window with a toggle on screen, and its first paint time. If the shared canvas keeps burning CPU while idle, the wrapper must pause it when nothing animates, or the window must fall back to plain controls and the owner is told.
+Sakuga VFX was the first choice and was dropped in M4 (owner's decision, 2026-11-22: the look did not fit). Rules now:
+1. Native HTML controls only (`button`, `input type="checkbox" switch`, radio, `progress`), no component library and no animation loop. WebKit draws them as macOS controls; `color-scheme: light dark` and the Theme setting (which sets the window appearance) switch both schemes.
+2. Layout follows macOS System Settings: grouped rounded sections, a label on the left and its control on the right, the system font and macOS-like light and dark colors.
+3. The palette window keeps its own CSS; nothing from the Settings styles loads there.
+4. Accessibility: every control has a visible label or `aria-label`; focus order follows the visual order; animations respect reduced motion.
 
 ## 7. Updates and release
 
 Port, do not redesign:
 - `update.rs`: first check 30 s after launch, then daily (toggle in Settings), manual check from Settings and the menu-bar icon. Updates verified against the minisign public key; `requireSignedVersion`.
-- **What's new window** (`whatsnew.rs`, `src/whatsnew/`): this is the "new features install dialog". It shows the release notes of the pending version (rendered without HTML, as velo does), then "Install and restart" with a progress bar and failure/retry states. Restyle it with Sakuga Button and Progress.
+- **What's new window** (`whatsnew.rs`, `src/whatsnew/`): this is the "new features install dialog". It shows the release notes of the pending version (rendered without HTML, as velo does), then "Install and restart" with a progress bar and failure/retry states. Restyle it with the Settings window's native look (§6): button and `<progress>`.
 - Surfacing: **never interrupt the launcher.** When an update is ready, show a small pill in the palette footer (and a menu-bar item). Clicking it opens the What's new window. Nothing pops up by itself.
 - After an update restart, the app starts hidden (port `take_restart_mark`).
 - Releases: Changesets → "Version Packages" PR → tag `vX.Y.Z` → `build-release.yml` builds macOS arm64 into a draft release → `publish` checks `latest.json` lists `darwin-aarch64` → publishes. Builds are ad-hoc signed (`signingIdentity: "-"`, as velo); the README documents the Gatekeeper workaround for the first install. No paid Apple Developer ID and no notarization (owner's decision); do not add either.
@@ -220,7 +212,7 @@ Every milestone is its own feature branch and PR, runs the quality gate, has a c
 
 **M3, Settings plumbing, tray, login.** `settings.rs`, menu-bar icon, autostart, single-instance behavior, hotkey recorder and conflict reporting, extra folders and ignore list (plain controls for now). *Attack list:* hotkey taken at launch, login item beside a running copy, App Translocation, dev build collision, corrupt settings file.
 
-**M4, Sakuga Settings window.** §6. Replace plain controls with Sakuga wrappers; both color schemes; §6 rule 6 measurements.
+**M4, Native-look Settings window.** §6. Restyle the plain controls to look like macOS System Settings; both color schemes. No animation loop, so no idle-CPU budget beyond §8. *(Was "Sakuga Settings window": dropped by the owner on 2026-11-22 after seeing the controls.)*
 
 **M5, Updates and What's new.** §7 port, restyled; footer pill; menu-bar item. Test against a local mock feed and a real signed test release. *Attack list:* offline, half-open socket, update found while the palette is open, install failure and retry, a second check while one is running, tampered `latest.json`.
 

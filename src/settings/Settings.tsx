@@ -15,7 +15,7 @@ type View = { settings: Settings; hotkeyError: string | null; login: boolean; lo
 
 const CONFLICT_HINT = "If another app (Raycast, Alfred) uses this shortcut, both will respond; change one of them.";
 
-/** Plain controls until M4 brings Sakuga. Every change is saved and applied at once; there is no Save button. */
+/** Native controls laid out like macOS System Settings (plan §6). Every change is saved and applied at once; there is no Save button. */
 export function SettingsPage() {
   const [view, setView] = useState<View | null>(null);
   const [error, setError] = useState("");
@@ -81,30 +81,46 @@ export function SettingsPage() {
 
   if (!view) return null;
   const s = view.settings;
-  const list = (key: "extraFolders" | "ignoredApps", empty: string) =>
-    s[key].length ? (
-      <ul className="paths">
-        {s[key].map((p) => (
-          <li key={p}>
-            <span className="path" title={p}>
-              {p}
-            </span>
-            <button type="button" onClick={() => save((cur) => ({ [key]: removePath(cur[key], p) }))} aria-label={`Remove ${p}`}>
-              Remove
-            </button>
-          </li>
+  // WebKit draws `<input type="checkbox" switch>` as a macOS switch; React's typings do not know the attribute yet
+  const toggle = { switch: "" };
+  const list = (key: "extraFolders" | "ignoredApps", label: string, empty: string, add: string, kind: "folder" | "app") => (
+    <div className="group" role="group" aria-label={label}>
+      {s[key].length ? (
+        <ul className="paths">
+          {s[key].map((p) => (
+            <li key={p} className="row">
+              <span className="path" title={p}>
+                {p}
+              </span>
+              <button type="button" onClick={() => save((cur) => ({ [key]: removePath(cur[key], p) }))} aria-label={`Remove ${p}`}>
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="row note">{empty}</p>
+      )}
+      <div className="row end">
+        <button type="button" onClick={() => pick(kind, key)}>
+          {add}
+        </button>
+      </div>
+    </div>
+  );
+  const radios = <K extends "theme" | "paletteStyle">(key: K, legend: string, options: [Settings[K], string][]) => (
+    <fieldset className="row">
+      <legend>{legend}</legend>
+      <span className="choices">
+        {options.map(([v, label]) => (
+          <label key={v}>
+            <input type="radio" name={key} checked={s[key] === v} onChange={() => save(() => ({ [key]: v }))} />
+            {label}
+          </label>
         ))}
-      </ul>
-    ) : (
-      <p className="note">{empty}</p>
-    );
-  const radios = <K extends "theme" | "paletteStyle">(key: K, options: [Settings[K], string][]) =>
-    options.map(([v, label]) => (
-      <label key={v} className="radio">
-        <input type="radio" name={key} checked={s[key] === v} onChange={() => save(() => ({ [key]: v }))} />
-        {label}
-      </label>
-    ));
+      </span>
+    </fieldset>
+  );
 
   return (
     <main>
@@ -116,24 +132,35 @@ export function SettingsPage() {
 
       <section aria-labelledby="general">
         <h2 id="general">General</h2>
-        <div className="field">
-          <span className="label" id="hotkey-label">
-            Hotkey
-          </span>
-          <button
-            type="button"
-            className="recorder"
-            aria-labelledby="hotkey-label"
-            aria-describedby="hotkey-hint"
-            onClick={() => (setRecording(true), setRecMsg(""))}
-            onBlur={() => setRecording(false)}
-          >
-            {recording ? "Press a shortcut…" : formatChord(s.hotkey)}
-          </button>
+        <div className="group">
+          <div className="row">
+            <span id="hotkey-label">Hotkey</span>
+            <button
+              type="button"
+              className="recorder"
+              aria-labelledby="hotkey-label"
+              aria-describedby="hotkey-hint"
+              onClick={() => (setRecording(true), setRecMsg(""))}
+              onBlur={() => setRecording(false)}
+            >
+              {recording ? "Press a shortcut…" : formatChord(s.hotkey)}
+            </button>
+          </div>
+          <p className="row note" id="hotkey-hint">
+            {recording ? "Esc cancels, ⌫ removes the hotkey." : CONFLICT_HINT}
+          </p>
+          <label className="row">
+            Start at login
+            <input
+              type="checkbox"
+              {...toggle}
+              checked={view.login}
+              disabled={!!view.loginRefusal && !view.login}
+              onChange={(e) => setLogin(e.target.checked)}
+            />
+          </label>
+          {view.loginRefusal && <p className="row note">{view.loginRefusal}</p>}
         </div>
-        <p className="note" id="hotkey-hint">
-          {recording ? "Esc cancels, ⌫ removes the hotkey." : CONFLICT_HINT}
-        </p>
         {recMsg && <p className="error">{recMsg}</p>}
         {view.hotkeyError && (
           <p className="error" role="alert">
@@ -141,54 +168,43 @@ export function SettingsPage() {
           </p>
         )}
 
-        <label className="field">
-          <input type="checkbox" checked={view.login} disabled={!!view.loginRefusal && !view.login} onChange={(e) => setLogin(e.target.checked)} />
-          Start at login
-        </label>
-        {view.loginRefusal && <p className="note">{view.loginRefusal}</p>}
-
         <h3>Extra folders to index</h3>
-        {list("extraFolders", "Only the standard Applications folders.")}
-        <button type="button" onClick={() => pick("folder", "extraFolders")}>
-          Add folder…
-        </button>
+        {list("extraFolders", "Extra folders to index", "Only the standard Applications folders.", "Add folder…", "folder")}
 
         <h3>Ignored apps</h3>
-        {list("ignoredApps", "No app is hidden from the palette.")}
-        <button type="button" onClick={() => pick("app", "ignoredApps")}>
-          Add app…
-        </button>
+        {list("ignoredApps", "Ignored apps", "No app is hidden from the palette.", "Add app…", "app")}
       </section>
 
       <section aria-labelledby="appearance">
         <h2 id="appearance">Appearance</h2>
-        <fieldset>
-          <legend>Theme</legend>
-          {radios("theme", [
+        <div className="group">
+          {radios("theme", "Theme", [
             ["system", "System"],
             ["light", "Light"],
             ["dark", "Dark"],
           ])}
-        </fieldset>
-        <fieldset>
-          <legend>Palette style</legend>
-          {radios("paletteStyle", [
+          {radios("paletteStyle", "Palette style", [
             ["compact", "Compact"],
             ["roomy", "Roomy"],
           ])}
-        </fieldset>
+        </div>
       </section>
 
       <section aria-labelledby="updates">
         <h2 id="updates">Updates</h2>
-        <button type="button" disabled>
-          Check for updates now
-        </button>
-        <label className="field">
-          <input type="checkbox" checked={s.dailyUpdateCheck} onChange={(e) => save(() => ({ dailyUpdateCheck: e.target.checked }))} />
-          Check every day
-        </label>
-        <p className="note">Update checks arrive in a later version. This is hop {view.version}.</p>
+        <div className="group">
+          <label className="row">
+            Check every day
+            <input type="checkbox" {...toggle} checked={s.dailyUpdateCheck} onChange={(e) => save(() => ({ dailyUpdateCheck: e.target.checked }))} />
+          </label>
+          <div className="row">
+            <span>hop {view.version}</span>
+            <button type="button" disabled>
+              Check now
+            </button>
+          </div>
+          <p className="row note">Update checks arrive in a later version.</p>
+        </div>
       </section>
     </main>
   );
