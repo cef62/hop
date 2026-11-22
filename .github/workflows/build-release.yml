@@ -111,3 +111,6 @@ jobs:
           gh release download "$TAG" -p latest.json -O - \
             | jq -e '.platforms | has("darwin-aarch64")'
           gh release edit "$TAG" --draft=false
+          # the docs site's download button reads the latest release at build time; a release published with
+          # GITHUB_TOKEN fires no release event, so rebuild the site explicitly
+          gh workflow run pages.yml --ref main || echo "docs site rebuild not started"
