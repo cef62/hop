@@ -37,6 +37,7 @@ for (const scheme of ['light', 'dark']) {
   // ⌘ alone only toggles the number hints; nothing runs until a second key
   await p.fill('.search', 'ma');
   await p.keyboard.down('Meta');
+  await p.getByText('⌘2').waitFor(); // fail loudly if the held-⌘ hints stop rendering
   await p.waitForTimeout(300);
   await shoot(`palette-cmd-${scheme}.jpg`);
   await p.keyboard.up('Meta');

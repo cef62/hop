@@ -91,7 +91,9 @@ Retrospectives, newest last.
 - Deferred: float precision through intermediates past 2^53 (`shortcut:` comment in `src/calc.ts`).
 - Round 3 was narrowed to the fix and ran on Sonnet: cheaper, and enough.
 
-### Final (after the screenshot PR)
+### Final (2026-11-22)
+
+- Shipped: PRs #15, #16, #18 and the screenshot PR #19; hop 0.2.0 released with ⌘1–9 and the calculator.
 
 - What worked: small PRs, attack lists with mutation checks, fixing a small Major inline instead of another agent round trip, narrowing late review rounds.
 - What to change next time: think through boundary classes in the plan for numeric features; run the gate before each commit; check new shortcuts against macOS system shortcuts first.
