@@ -46,5 +46,8 @@ export function calc(query: string): string | null {
 
   const v = expr();
   if (bad || i < t.length || !ops || !Number.isFinite(v)) return null;
-  return String(Number.isSafeInteger(v) ? v : Number(v.toPrecision(12))); // String(-0) is "0"
+  if (Number.isSafeInteger(v)) return String(v); // String(-0) is "0"
+  const r = Number(v.toPrecision(12));
+  // from 1e11 up, 12 significant digits reach the units: a plain number would look exact with wrong digits
+  return Math.abs(r) >= 1e11 ? r.toExponential() : String(r);
 }
