@@ -33,10 +33,13 @@ pub fn hold_instance_lock(dir: &Path) -> bool {
 
 /// Why a login item must not point at this executable, if so. The crate writes the path unquoted and unescaped: an App
 /// Translocation path (a quarantined app run from where it was downloaded) is gone after a reboot, and `& < >` make the
-/// plist invalid. A development build is not the installed app that shares the item's name.
+/// plist invalid. A development build, or a release build run from cargo's `target` folder, is not the installed app
+/// that shares the item's name.
 pub fn login_item_refusal(exe: &str, debug_build: bool) -> Option<&'static str> {
     if debug_build {
         Some("Start at login is not available in a development build.")
+    } else if exe.contains("/target/release/") || exe.contains("/target/debug/") {
+        Some("This hop runs from a build folder. Start at login is only for a hop installed in Applications.")
     } else if exe.contains("/AppTranslocation/") {
         Some("macOS is running hop from a temporary location. Move hop to Applications, open it from there, then turn Start at login on.")
     } else if exe.contains(['&', '<', '>']) {
@@ -127,6 +130,10 @@ mod tests {
         let moved = "/private/var/folders/x/T/AppTranslocation/1234/d/hop.app/Contents/MacOS/hop";
         assert!(login_item_refusal(moved, false).unwrap().contains("temporary location"));
         assert!(login_item_refusal("/Users/me/Apps & Tools/hop.app/Contents/MacOS/hop", false).unwrap().contains("& < or >"));
+        // a release build run from its cargo output folder (a checkout or a worktree)
+        let built = "/Volumes/Dev/hop/src-tauri/target/release/bundle/macos/hop.app/Contents/MacOS/hop";
+        assert!(login_item_refusal(built, false).unwrap().contains("build folder"));
+        assert_eq!(login_item_refusal("/Applications/target practice/hop.app/Contents/MacOS/hop", false), None);
     }
 
     #[test]

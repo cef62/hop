@@ -52,6 +52,8 @@ export function SettingsPage() {
   // while recording, the recorder owns the keys
   // shortcut: the saved hotkey stays registered while recording, so pressing it toggles the palette instead of being
   // recorded (it would be no change anyway); unregister it during recording if that confuses people
+  // shortcut: the default macOS app menu's key equivalents (⌘Q, ⌘W, ⌘H) act before the page sees them, so they cannot
+  // be recorded (they would make poor hotkeys anyway); a custom app menu without them would lose ⌘W and ⌘Q in Settings
   useEffect(() => {
     if (!recording) return;
     const onKey = (e: KeyboardEvent) => {

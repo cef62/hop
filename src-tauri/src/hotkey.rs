@@ -50,20 +50,26 @@ pub fn start(app: &AppHandle, chord: &str, started: std::time::Instant) {
 
 /// From Settings: `old` is released, `new` registered. If `new` fails, `old` is registered again and the error returned.
 pub fn change(app: &AppHandle, old: &str, new: &str) -> Result<(), String> {
-    unregister(app, old);
-    match register(app, new) {
-        Ok(()) => {
-            *ERROR.lock().unwrap() = None;
-            Ok(())
-        }
+    let (res, err) = swap(old, new, |c| register(app, c), |c| unregister(app, c));
+    if let Err(e) = &res {
+        eprintln!("hop: hotkey not changed: {e}");
+    }
+    if let Some(a) = &err {
+        eprintln!("hop: hotkey not registered: {a}");
+    }
+    *ERROR.lock().unwrap() = err;
+    res
+}
+
+/// `change` without the plugin: the result, and the error to show afterwards (none when a chord is live, or the
+/// previous one could not be put back).
+fn swap(old: &str, new: &str, mut reg: impl FnMut(&str) -> Result<(), String>, unreg: impl FnOnce(&str)) -> (Result<(), String>, Option<String>) {
+    unreg(old);
+    match reg(new) {
+        Ok(()) => (Ok(()), None),
         Err(e) => {
-            eprintln!("hop: hotkey not changed: {e}");
-            let again = register(app, old).err();
-            if let Some(a) = &again {
-                eprintln!("hop: previous hotkey not restored: {a}");
-            }
-            *ERROR.lock().unwrap() = again;
-            Err(e)
+            let again = reg(old).err();
+            (Err(e), again)
         }
     }
 }
@@ -74,7 +80,23 @@ pub fn error() -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::valid;
+    use super::{swap, valid};
+
+    #[test]
+    fn a_refused_chord_puts_the_old_one_back() {
+        let log = std::cell::RefCell::new(vec![]);
+        let reg = |c: &str| {
+            log.borrow_mut().push(format!("+{c}"));
+            if c == "Super+Space" { Err("refused".to_string()) } else { Ok(()) }
+        };
+        let unreg = |c: &str| log.borrow_mut().push(format!("-{c}"));
+        assert_eq!(swap("Alt+Space", "Control+KeyK", reg, unreg), (Ok(()), None));
+        assert_eq!(swap("Alt+Space", "Super+Space", reg, unreg), (Err("refused".into()), None));
+        assert_eq!(*log.borrow(), ["-Alt+Space", "+Control+KeyK", "-Alt+Space", "+Super+Space", "+Alt+Space"]);
+        // the old chord no longer registers either (another app took it meanwhile): that is the error to show
+        let both = |_: &str| Err::<(), _>("refused".to_string());
+        assert_eq!(swap("Alt+Space", "Super+Space", both, |_| {}), (Err("refused".into()), Some("refused".into())));
+    }
 
     #[test]
     fn chords_the_recorder_writes_parse_and_broken_ones_do_not() {
