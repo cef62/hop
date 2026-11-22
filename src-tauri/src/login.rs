@@ -38,7 +38,7 @@ pub fn hold_instance_lock(dir: &Path) -> bool {
 pub fn login_item_refusal(exe: &str, debug_build: bool) -> Option<&'static str> {
     if debug_build {
         Some("Start at login is not available in a development build.")
-    } else if exe.contains("/target/release/") || exe.contains("/target/debug/") {
+    } else if exe.find("/target/").is_some_and(|i| ["/release/", "/debug/"].iter().any(|d| exe[i..].contains(d))) {
         Some("This hop runs from a build folder. Start at login is only for a hop installed in Applications.")
     } else if exe.contains("/AppTranslocation/") {
         Some("macOS is running hop from a temporary location. Move hop to Applications, open it from there, then turn Start at login on.")
@@ -134,6 +134,9 @@ mod tests {
         let built = "/Volumes/Dev/hop/src-tauri/target/release/bundle/macos/hop.app/Contents/MacOS/hop";
         assert!(login_item_refusal(built, false).unwrap().contains("build folder"));
         assert_eq!(login_item_refusal("/Applications/target practice/hop.app/Contents/MacOS/hop", false), None);
+        // `--target aarch64-apple-darwin` (as the release workflow builds) puts the profile one level deeper
+        let cross = "/Users/me/hop/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/hop.app/Contents/MacOS/hop";
+        assert!(login_item_refusal(cross, false).unwrap().contains("build folder"));
     }
 
     #[test]

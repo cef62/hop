@@ -112,15 +112,17 @@ pub enum GiveBack {
     HideApp,
     /// Activate this pid: the app the palette came up over. Used while Settings is open, which `HideApp` would hide.
     Activate(i32),
-    /// The palette came up over hop's own Settings window, which keeps the focus.
+    /// Leave the focus where it is: the palette came up over hop's own Settings window, or it lost the focus (a click
+    /// on Settings or another app already moved it, and activating the old app would steal it back).
     Stay,
 }
 
-pub fn give_back(settings_open: bool, previous: Option<i32>) -> GiveBack {
-    match (settings_open, previous) {
-        (false, _) => GiveBack::HideApp,
-        (true, Some(pid)) => GiveBack::Activate(pid),
-        (true, None) => GiveBack::Stay,
+/// `blur`: the hide comes from the palette losing the focus, not from Esc, the hotkey or a launch.
+pub fn give_back(settings_open: bool, previous: Option<i32>, blur: bool) -> GiveBack {
+    match (settings_open, previous, blur) {
+        (false, _, _) => GiveBack::HideApp,
+        (true, _, true) | (true, None, _) => GiveBack::Stay,
+        (true, Some(pid), false) => GiveBack::Activate(pid),
     }
 }
 
@@ -130,8 +132,8 @@ static PREVIOUS: Mutex<Option<i32>> = Mutex::new(None);
 /// When the last show started, for the hotkey → typeable measurement.
 static SHOW_STARTED: Mutex<Option<Instant>> = Mutex::new(None);
 
-/// Runs a `Visibility` transition and performs the step it returns.
-fn apply(app: &AppHandle, step: impl FnOnce(&mut Visibility) -> Step) {
+/// Runs a `Visibility` transition and performs the step it returns. `blur`: see `give_back`.
+fn apply(app: &AppHandle, blur: bool, step: impl FnOnce(&mut Visibility) -> Step) {
     let step = step(&mut app.state::<Mutex<Visibility>>().lock().unwrap());
     let Some(w) = main_window(app) else { return };
     match step {
@@ -161,7 +163,7 @@ fn apply(app: &AppHandle, step: impl FnOnce(&mut Visibility) -> Step) {
         Step::Hide => {
             w.hide().ok();
             #[cfg(target_os = "macos")]
-            match give_back(crate::settings::is_open(app), *PREVIOUS.lock().unwrap()) {
+            match give_back(crate::settings::is_open(app), *PREVIOUS.lock().unwrap(), blur) {
                 GiveBack::HideApp => drop(app.hide()),
                 GiveBack::Activate(pid) => mac::activate(pid),
                 GiveBack::Stay => {}
@@ -174,22 +176,27 @@ fn apply(app: &AppHandle, step: impl FnOnce(&mut Visibility) -> Step) {
 
 /// The hotkey: hides the palette when it is up, else shows it.
 pub fn toggle(app: &AppHandle) {
-    apply(app, Visibility::toggle);
+    apply(app, false, Visibility::toggle);
 }
 
 /// Relaunching hop (`RunEvent::Reopen`) or the menu-bar icon's Open: the ways in when the hotkey is not registered.
 pub fn show(app: &AppHandle) {
-    apply(app, Visibility::show);
+    apply(app, false, Visibility::show);
 }
 
 /// `WindowEvent::Focused` of the palette window: clicking away hides it.
 pub fn focus_changed(app: &AppHandle, focused: bool) {
-    apply(app, |v| v.focus(focused));
+    apply(app, true, |v| v.focus(focused));
 }
 
 /// Esc in the palette, or a launch.
 pub fn hide(app: &AppHandle) {
-    apply(app, Visibility::hide);
+    apply(app, false, Visibility::hide);
+}
+
+/// Hides the palette without handing the focus to another app: Settings is about to take it.
+pub fn hide_for_settings(app: &AppHandle) {
+    apply(app, true, Visibility::hide);
 }
 
 #[tauri::command]
@@ -304,13 +311,15 @@ mod tests {
 
     #[test]
     fn a_hide_gives_focus_back_without_hiding_an_open_settings_window() {
-        assert_eq!(give_back(false, Some(42)), GiveBack::HideApp);
-        assert_eq!(give_back(false, None), GiveBack::HideApp);
+        assert_eq!(give_back(false, Some(42), false), GiveBack::HideApp);
+        assert_eq!(give_back(false, None, false), GiveBack::HideApp);
         // Settings is open (maybe behind other windows, minimized or on another Space): hiding the app would hide it,
         // staying active would bring it forward; the app the palette came up over gets the focus instead
-        assert_eq!(give_back(true, Some(42)), GiveBack::Activate(42));
+        assert_eq!(give_back(true, Some(42), false), GiveBack::Activate(42));
         // the palette came up over hop's own Settings window: it keeps the focus
-        assert_eq!(give_back(true, None), GiveBack::Stay);
+        assert_eq!(give_back(true, None, false), GiveBack::Stay);
+        // a click on Settings (or another app) blurred the palette: the focus already moved, nothing is activated
+        assert_eq!(give_back(true, Some(42), true), GiveBack::Stay);
     }
 
     #[test]

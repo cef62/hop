@@ -67,10 +67,12 @@ impl Settings {
 }
 
 /// A folder whose two-level scan and recursive watch would cover the whole disk or every user's files.
+/// Compared resolved (symlinks, `..`, `/Volumes/Macintosh HD` → `/`) and case-folded, as APFS compares names.
 pub fn too_broad(folder: &str) -> bool {
-    let home = std::env::var_os("HOME").map(PathBuf::from);
-    let p = Path::new(folder);
-    ["/", "/Users", "/Volumes"].iter().any(|b| p == Path::new(b)) || home.is_some_and(|h| p == h)
+    let key = |p: &Path| std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf()).to_string_lossy().trim_end_matches('/').to_lowercase();
+    let f = key(Path::new(folder));
+    let home = std::env::var_os("HOME").map(|h| key(Path::new(&h)));
+    ["", "/users", "/volumes", "/system/volumes/data"].contains(&f.as_str()) || home.is_some_and(|h| f == h)
 }
 
 /// What the window says when it sent a refused key.
@@ -129,7 +131,8 @@ pub fn load(path: &Path) -> (Settings, bool) {
             if !bad.is_empty() {
                 eprintln!("hop: {} has invalid {}; using the defaults for those", path.display(), bad.join(", "));
             }
-            s.login_applied = obj.get("loginApplied").and_then(Value::as_bool).unwrap_or(false);
+            // only a missing key is "not yet applied": a hand-edited value of another type must not turn start at login back on
+            s.login_applied = obj.get("loginApplied").is_some_and(|v| v.as_bool() != Some(false));
             s.other = obj.into_iter().filter(|(k, _)| !known(k)).collect();
             let first = !s.login_applied;
             (s, first)
@@ -274,7 +277,7 @@ pub fn pick_path(app: AppHandle, kind: String) -> Option<String> {
 
 /// Opens the Settings window, or brings it to the front. The palette hides first (plan §4.1).
 pub fn open(app: &AppHandle) {
-    crate::panel::hide(app);
+    crate::panel::hide_for_settings(app);
     #[cfg(target_os = "macos")]
     app.show().ok(); // undo the palette's app.hide(), or the window stays hidden
     if let Some(w) = app.get_webview_window(LABEL) {
@@ -410,12 +413,22 @@ mod tests {
     #[test]
     fn extra_folders_refuse_the_whole_disk_and_home() {
         let home = std::env::var("HOME").unwrap();
-        for f in ["/", "/Users", "/Users/", "/Volumes", home.as_str()] {
+        for f in ["/", "/Users", "/Users/", "/users", "/Users/..", "/Volumes", "/System/Volumes/Data", home.as_str()] {
             assert!(too_broad(f), "{f}");
             assert_eq!(merge(&Settings::default(), &json!({"extraFolders": [f]})).1, ["extraFolders"], "{f}");
         }
         for f in ["/Volumes/Apps", "/opt/apps", &format!("{home}/Apps")] {
             assert!(!too_broad(f), "{f}");
+        }
+    }
+
+    #[test]
+    fn only_a_missing_login_applied_is_a_first_run() {
+        let tmp = tempfile::tempdir().unwrap();
+        let p = tmp.path().join("settings.json");
+        for (text, first) in [(r#"{"version":1}"#, true), (r#"{"version":1,"loginApplied":false}"#, true), (r#"{"version":1,"loginApplied":1}"#, false), (r#"{"version":1,"loginApplied":true}"#, false)] {
+            std::fs::write(&p, text).unwrap();
+            assert_eq!(load(&p).1, first, "{text}");
         }
     }
 }
