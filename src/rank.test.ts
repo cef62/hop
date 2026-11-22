@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { boost, move, prepare, search, type App } from "./rank";
+import { LIMIT, boost, move, prepare, search, type App } from "./rank";
 
 const app = (name: string, altNames: string[] = []): App => ({ name, altNames, path: `/Applications/${altNames[0] ?? name}.app` });
 const apps = [
@@ -52,4 +52,9 @@ test("1000 apps searched under 5 ms per keystroke", () => {
   const t0 = performance.now();
   for (const q of ["a", "ab", "abc", "x", "vsc"]) search(q, big, {});
   expect((performance.now() - t0) / 5).toBeLessThan(5);
+});
+
+test("caps results at LIMIT", () => {
+  const many = prepare(Array.from({ length: 50 }, (_, i) => ({ name: `App ${i}`, altNames: [], path: `/Applications/App ${i}.app` })));
+  expect(search("app", many, {})).toHaveLength(LIMIT);
 });

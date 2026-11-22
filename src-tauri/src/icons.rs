@@ -1,6 +1,6 @@
 //! App icons for the palette, served through the `icon` URI scheme (`icon://localhost/<url-encoded app path>`), so the
 //! webview loads them like images and no icon bytes cross IPC. Rendered once to a 64 px PNG and cached on disk, keyed
-//! by bundle path and modification time; a changed app gets a new cache file.
+//! by bundle path and modification time (bundle or its Info.plist, whichever is newer); a changed app gets a new cache file.
 
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::{Path, PathBuf};
@@ -21,7 +21,9 @@ pub fn cache_file(dir: &Path, path: &str, mtime: u64) -> PathBuf {
 
 /// The PNG for `path`, from the cache or freshly rendered (then written to the cache; a failed write still serves it).
 fn icon_png(cache_dir: &Path, path: &str) -> Option<Vec<u8>> {
-    let mtime = std::fs::metadata(path).ok()?.modified().ok()?.duration_since(std::time::UNIX_EPOCH).ok()?.as_secs();
+    // an update can rewrite only files inside Contents/, leaving the bundle folder's mtime alone: take the newer of the two
+    let secs = |p: &Path| std::fs::metadata(p).ok()?.modified().ok()?.duration_since(std::time::UNIX_EPOCH).ok().map(|d| d.as_secs());
+    let mtime = secs(Path::new(path))?.max(secs(&Path::new(path).join("Contents/Info.plist")).unwrap_or(0));
     let file = cache_file(cache_dir, path, mtime);
     if let Ok(png) = std::fs::read(&file) {
         return Some(png);
@@ -86,7 +88,7 @@ pub fn handle(ctx: UriSchemeContext<'_, tauri::Wry>, req: Request<Vec<u8>>, resp
             .filter(|p| label == "main" && crate::apps::known(&app, p))
             .and_then(|p| icon_png(&app.path().app_cache_dir().ok()?.join("icons"), &p));
         let res = match png {
-            Some(png) => Response::builder().header("Content-Type", "image/png").header("Cache-Control", "max-age=31536000").body(png),
+            Some(png) => Response::builder().header("Content-Type", "image/png").header("Cache-Control", "no-cache").body(png),
             None => Response::builder().status(StatusCode::NOT_FOUND).body(Vec::new()),
         };
         responder.respond(res.unwrap());

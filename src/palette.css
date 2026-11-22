@@ -178,6 +178,7 @@ body {
 }
 
 .footer {
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   height: var(--footer-height);
