@@ -304,7 +304,7 @@ pub fn open(app: &AppHandle) {
     }
     let built = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("settings.html".into()))
         .title("hop Settings")
-        .inner_size(520.0, 640.0) // the whole page without a scrollbar, with empty lists and an update waiting
+        .inner_size(520.0, 680.0) // the whole page without a scrollbar: empty lists plus a login note or an update row
         .min_inner_size(420.0, 420.0)
         .minimizable(false)
         .maximizable(false)
