@@ -1,6 +1,6 @@
 import { expect, test, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { PaletteView, type Style } from "./Palette";
+import { PaletteView, rowAt, type Style } from "./Palette";
 import { paletteKey } from "./keys";
 import { move, prepare, search, type App } from "./rank";
 
@@ -53,4 +53,38 @@ test("⌘N hints show only while ⌘ is held, on the first 9 rows, the same in b
     expect(html).toContain('aria-keyshortcuts="Meta+1"');
     expect(html).toContain('aria-keyshortcuts="Meta+9"');
   }
+});
+
+test("a calculator result is row 0: it copies, the apps follow it, and ⌘N and the hints count it", () => {
+  const view = (sel: number, cmd = false) =>
+    renderToStaticMarkup(<PaletteView style="compact" query="2+3*4" rows={rows} result="14" sel={sel} cmd={cmd} error="" onQuery={() => {}} onOpen={() => {}} />);
+  const first = view(0);
+  expect(first.match(/role="option"/g)).toHaveLength(rows.length + 1);
+  expect(first).toContain('aria-activedescendant="row-0"');
+  expect(first).toMatch(/<li id="row-0" class="row" role="option" aria-selected="true" aria-keyshortcuts="Meta\+1" aria-label="Result 14, press Enter to copy"><span class="icon calc" aria-hidden="true">=<\/span><span class="name">= 14<\/span><span class="hint" aria-hidden="true">↵<span class="hint-label"> copy<\/span>/);
+  expect(first.indexOf('id="row-0"')).toBeLessThan(first.indexOf("Finder"));
+  expect(first).toMatch(/id="row-1" class="row" role="option" aria-selected="false" aria-keyshortcuts="Meta\+2"><span class="icon"><img src="icon:\/\/localhost\/%2FApplications%2FFinder.app"/);
+  expect(first).not.toContain("> open<");
+  expect(first.match(/<img/g)).toHaveLength(rows.length); // the result row requests no icon
+  const second = view(1);
+  expect(second).toContain("> open<");
+  expect(second).not.toContain("> copy<");
+  const held = view(0, true);
+  expect(held).toContain('aria-hidden="true">⌘1</span>');
+  expect(held).toContain(`aria-hidden="true">⌘${rows.length + 1}</span>`);
+  // the selection moves over the combined list, Enter and ⌘1 on row 0 reach the result, not an app
+  expect(move(0, 1, rows.length + 1)).toBe(1);
+  expect(move(rows.length - 1, 1, rows.length + 1)).toBe(rows.length); // the last app stays reachable
+  expect(rowAt(0, "14", rows)).toBe("14");
+  expect(rowAt(1, "14", rows)).toBe(rows[0]);
+  expect(rowAt(rows.length, "14", rows)).toBe(rows[rows.length - 1]);
+  expect(rowAt(0, null, rows)).toBe(rows[0]);
+});
+
+test("a result shows the list even when no app matches", () => {
+  const html = renderToStaticMarkup(<PaletteView style="roomy" query="1+1" rows={[]} result="2" sel={0} error="" onQuery={() => {}} onOpen={() => {}} />);
+  expect(html.match(/role="option"/g)).toHaveLength(1);
+  expect(html).toContain('aria-activedescendant="row-0"');
+  expect(html).toContain('aria-label="Result 2, press Enter to copy"');
+  expect(renderToStaticMarkup(<PaletteView style="roomy" query="zz" rows={[]} result={null} sel={0} error="" onQuery={() => {}} onOpen={() => {}} />)).not.toContain("listbox");
 });

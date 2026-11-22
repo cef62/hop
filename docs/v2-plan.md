@@ -57,6 +57,7 @@ What would confirm it (owner's Mac, Settings open behind another app X, palette 
 - Accessible name "Result 14, press Enter to copy".
 - Out of scope: units, currency, variables.
 - Tests: parser table with edge cases; palette row; Rust command input cap. Docs: README, site Usage section, home card.
+- As built: `copy_text` hides the palette itself after a successful copy, like `launch` does, so a copy and its hide are one call and a failure keeps the palette open with the error. It also refuses empty text (an empty copy would only wipe the clipboard). The listbox is now named "Results", since it holds more than apps. The home page's cards shrink to fit five in a row.
 
 ## After PR 3
 
@@ -73,3 +74,11 @@ Retrospectives, newest last.
 - The reviewer's mutation check (remove a role, rerun the tests) found real coverage gaps cheaply. Keep it in every attack list.
 - Agents report "CI not checked". The orchestrator always watches CI before merge.
 - Adjustments: briefs now say "no new dependency; extend existing seams (`PaletteView` props, pure functions in `keys.ts`/`rank.ts`)". PR 2 puts the ⌘-held state in a `PaletteView` prop so hints are testable statically. Attack lists include mutation checks.
+
+### After PR 2 (#16, merged 2026-11-22)
+
+- The plan had a design flaw the implementer's own attack list caught: ⌘⇧3/4/5 are macOS screenshot shortcuts, so ⌘⇧N reveal was dropped. Lesson: check every new shortcut against macOS system shortcuts before planning it.
+- The implementer pushed a commit that did not compile. Briefs now require the full gate before every commit, not only before the PR.
+- Mutation checks in review paid off again (all visible mutations caught). DOM-only wiring (window listeners) stays a manual check; keep that wiring tiny.
+- Deferred: key repeat on ⌘N (same as Enter), late hints when the palette opens with ⌘ held.
+- Adjustments for PR 3: the brief lists the system-shortcut and clipboard constraints up front; the gate runs before each commit; the parser lives in its own pure module with a table test so mutation checks reach it.
