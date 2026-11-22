@@ -131,10 +131,11 @@ fn spawn_checker(app: AppHandle) {
         loop {
             let since = last.map(|(w, a)| Since { wall: w.elapsed().ok(), awake: a.elapsed() });
             if due(crate::settings::current(&app).daily_update_check, since) {
-                last = Some((SystemTime::now(), Instant::now()));
-                // a background failure is never shown (offline, GitHub down): one log line
-                if let Err(e) = tauri::async_runtime::block_on(check(&app)) {
-                    eprintln!("hop: update check failed: {e}");
+                // a background failure is never shown (offline, GitHub down, a manual check running): one log line,
+                // and the next wake tries again instead of waiting a day
+                match tauri::async_runtime::block_on(check(&app)) {
+                    Ok(_) => last = Some((SystemTime::now(), Instant::now())),
+                    Err(e) => eprintln!("hop: update check failed: {e}"),
                 }
             }
             std::thread::sleep(WAKE_POLL);
@@ -210,6 +211,11 @@ pub async fn install(app: &AppHandle, expected: &str) -> Result<(), String> {
         return Err(e.to_string());
     }
     drop(st);
+    // never restart under the user's typing (the What's new window may have been closed during the download)
+    // shortcut: polls on a runtime worker thread; an event from the palette's hide would avoid it if that ever matters
+    while crate::panel::is_shown(app) {
+        std::thread::sleep(Duration::from_millis(250));
+    }
     app.restart();
 }
 
@@ -257,6 +263,12 @@ pub async fn check_update(app: AppHandle) -> Result<Option<UpdateInfo>, String> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_whatsnew_window_knows_the_stale_install_errors() {
+        let api = include_str!("../../src/whatsnew/api.ts");
+        assert!(api.contains(&format!("\"{NO_UPDATE}\"")) && api.contains(&format!("\"{NEWER}\"")));
+    }
 
     #[test]
     fn checks_first_then_daily_and_only_while_on() {

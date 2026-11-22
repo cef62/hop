@@ -178,6 +178,11 @@ fn apply(app: &AppHandle, blur: bool, step: impl FnOnce(&mut Visibility) -> Step
     }
 }
 
+/// Whether the palette is up: an update's relaunch waits for it to hide.
+pub fn is_shown(app: &AppHandle) -> bool {
+    app.state::<Mutex<Visibility>>().lock().unwrap_or_else(|p| p.into_inner()).shown
+}
+
 /// The hotkey: hides the palette when it is up, else shows it.
 pub fn toggle(app: &AppHandle) {
     apply(app, false, Visibility::toggle);

@@ -16,8 +16,8 @@ A minimal macOS app launcher. Work in progress.
   extra folders to index, apps to hide, theme (System, Light, Dark) and palette style (Compact or Roomy). Changes
   apply at once. If another app (Raycast, Alfred) uses the same hotkey, both respond: change one of them.
 - Opening the hop app again while it runs shows the palette.
-- Updates: hop checks for a new version 30 seconds after it starts, then once a day while Settings › Check every
-  day is on. **Check now** in Settings and **Check for Updates…** in the menu-bar icon check at once. hop never
+- Updates: while Settings › Check every day is on, hop checks for a new version 30 seconds after it starts, then
+  once a day. **Check now** in Settings and **Check for Updates…** in the menu-bar icon check at once. hop never
   interrupts you: a found update shows as a small pill in the palette footer (click it or press **⌘U**) and as
   **Update to hop X…** in the menu-bar icon. Both open the What's new window with the release notes and **Install
   and restart**. Updates are verified against hop's signing key before they install; after the restart hop stays
