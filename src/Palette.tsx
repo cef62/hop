@@ -6,7 +6,7 @@ import { move, prepare, search, type App, type Frecency } from "./rank";
 
 export type Style = "compact" | "roomy";
 type Index = { generation: number; apps: App[] };
-type Look = { style: Style; perf: boolean };
+type Look = { style: Style; perf: boolean; update: string | null };
 
 /** After the next paint: rAF runs before it, the timeout right after. */
 const afterPaint = (f: () => void) => requestAnimationFrame(() => setTimeout(f, 0));
@@ -17,17 +17,20 @@ type ViewProps = {
   rows: App[];
   sel: number;
   error: string;
+  /** the version waiting to install: the footer shows its pill */
+  update?: string | null;
   onQuery(q: string, timeStamp: number): void;
   onOpen(i: number): void;
+  onUpdate?(): void;
   input?: React.Ref<HTMLInputElement>;
   card?: React.Ref<HTMLDivElement>;
   list?: React.Ref<HTMLUListElement>;
 };
 
 /** The card. Both styles render the same markup; `data-style` only switches CSS variables and the footer rule. */
-export function PaletteView({ style, query, rows, sel, error, onQuery, onOpen, input, card, list }: ViewProps) {
+export function PaletteView({ style, query, rows, sel, error, update, onQuery, onOpen, onUpdate, input, card, list }: ViewProps) {
   return (
-    <div className="card" data-style={style} ref={card}>
+    <div className="card" data-style={style} data-update={update ? "" : undefined} ref={card}>
       <label className="search-row">
         <svg className="search-icon" viewBox="0 0 24 24" aria-hidden="true">
           <circle cx="10.5" cy="10.5" r="6.5" />
@@ -75,8 +78,16 @@ export function PaletteView({ style, query, rows, sel, error, onQuery, onOpen, i
           ))}
         </ul>
       )}
-      <div className="footer" aria-hidden="true">
-        ↵ open · ⌘↵ reveal in Finder · esc close
+      <div className="footer">
+        <span className="keys" aria-hidden="true">
+          ↵ open · ⌘↵ reveal in Finder · esc close
+        </span>
+        {update && (
+          // not a Tab stop (the input keeps the focus): ⌘U is its key
+          <button type="button" className="pill" tabIndex={-1} onClick={onUpdate} aria-keyshortcuts="Meta+U">
+            Update to {update} <span aria-hidden="true">⌘U</span>
+          </button>
+        )}
       </div>
     </div>
   );
@@ -89,6 +100,7 @@ export function Palette() {
   const [query, setQuery] = useState("");
   const [sel, setSel] = useState(0);
   const [error, setError] = useState("");
+  const [update, setUpdate] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
   const card = useRef<HTMLDivElement>(null);
   const list = useRef<HTMLUListElement>(null);
@@ -109,6 +121,7 @@ export function Palette() {
     move: (d) => setSel(move(at, d, rows.length)),
     open: (reveal) => open(at, reveal),
     settings: () => invoke("open_settings"),
+    update: () => update && invoke("open_whatsnew"),
   };
 
   useEffect(() => {
@@ -119,6 +132,7 @@ export function Palette() {
       listen<Index>("apps-changed", (e) => take(e.payload)),
       listen<Look>("palette-shown", (e) => {
         setStyle(e.payload.style);
+        setUpdate(e.payload.update);
         perf.current = e.payload.perf;
         input.current?.focus();
         loadFrecency();
@@ -180,6 +194,8 @@ export function Palette() {
       rows={rows}
       sel={at}
       error={error}
+      update={update}
+      onUpdate={actions.current.update}
       onQuery={(q, t) => {
         if (perf.current) keyAt.current = t;
         setQuery(q);

@@ -2,7 +2,7 @@ import { expect, test, vi } from "vitest";
 import { paletteKey } from "./keys";
 
 const ev = (key: string, isComposing = false, keyCode = 0, metaKey = false) => ({ key, isComposing, keyCode, metaKey, preventDefault: vi.fn() });
-const actions = () => ({ hide: vi.fn(), move: vi.fn(), open: vi.fn(), settings: vi.fn() });
+const actions = () => ({ hide: vi.fn(), move: vi.fn(), open: vi.fn(), settings: vi.fn(), update: vi.fn() });
 
 test("Esc hides from any element, Tab never moves focus off the input", () => {
   const a = actions();
@@ -43,4 +43,15 @@ test("⌘, opens Settings, a plain comma is typed", () => {
   expect(plain.preventDefault).not.toHaveBeenCalled();
   paletteKey(ev(",", false, 0, true), a);
   expect(a.settings).toHaveBeenCalledOnce();
+});
+
+test("⌘U opens the update pill, a plain u is typed", () => {
+  const a = actions();
+  const plain = ev("u");
+  paletteKey(plain, a);
+  expect(a.update).not.toHaveBeenCalled();
+  expect(plain.preventDefault).not.toHaveBeenCalled();
+  paletteKey(ev("u", false, 0, true), a);
+  paletteKey(ev("U", false, 0, true), a); // caps lock
+  expect(a.update).toHaveBeenCalledTimes(2);
 });

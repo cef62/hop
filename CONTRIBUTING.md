@@ -22,6 +22,17 @@ Run before every commit that finishes a task and before opening a PR. Report the
 
 Dev and installed builds share the identifier and lock on macOS: quit the installed hop before `pnpm tauri dev`.
 
+### Testing updates against a local feed
+
+Development builds never check for updates; release builds read the feed and key from `tauri.conf.json`. To test
+against a local feed, override them at build time only (a test in `update.rs` keeps the committed config on the signed
+GitHub feed). Never use `~/.tauri/hop.key` for this: make a throwaway key.
+
+1. `pnpm tauri signer generate --ci -p "" -w /tmp/hop-test/test.key`
+2. Build the new version, signed with that key: `TAURI_SIGNING_PRIVATE_KEY="$(cat /tmp/hop-test/test.key)" TAURI_SIGNING_PRIVATE_KEY_PASSWORD="" pnpm tauri build --bundles app --config "$CONF"` with `CONF` = `{"version":"0.0.2","bundle":{"createUpdaterArtifacts":true},"plugins":{"updater":{"pubkey":"<test.key.pub>","endpoints":["http://127.0.0.1:8765/latest.json"],"dangerousInsecureTransportProtocol":true}}}`. Keep `hop.app.tar.gz` and its `.sig`.
+3. Build the current version with the same `plugins` override and `createUpdaterArtifacts: false`, and copy `hop.app` to a folder whose path contains `/target/release/` (so it never touches the installed app's login item).
+4. Serve `latest.json` (`{"version":"0.0.2","notes":"…","platforms":{"darwin-aarch64":{"signature":"<.sig contents>","url":"http://127.0.0.1:8765/hop.app.tar.gz"}}}`) and the package on port 8765, quit the installed hop, and run the copy from step 3.
+
 ## Pull requests
 
 - PRs are squash-merged, so the title is in conventional-commit form (`feat: …`, `fix: …`, `docs: …`, `ci: …`); it becomes the commit on `main`.

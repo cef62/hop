@@ -2,6 +2,7 @@
 //! ported from velo. The LaunchAgent is the truth for "start at login": hop keeps no copy in its settings.
 
 use std::path::Path;
+use std::time::Duration;
 
 use tauri::AppHandle;
 use tauri_plugin_autostart::ManagerExt;
@@ -13,22 +14,61 @@ pub const HIDDEN_ARG: &str = "--hidden";
 pub const AUTOSTART_NAME: &str = "dev.hop.app";
 
 /// Takes the exclusive lock on `dir/instance.lock` for the rest of the process (the OS drops it at exit or crash, so no
-/// stale lock is left). False only when another process holds it; a file system that cannot lock lets hop run.
+/// stale lock is left). Retried for `wait`: the relaunch after an update can start before the old process has ended.
+/// False only when another process holds it; a file system that cannot lock lets hop run.
 ///
 /// Why not the single-instance plugin: its socket in shared /tmp could be squatted to block launch. A Finder, Dock or
 /// Spotlight launch already reaches the running hop as `RunEvent::Reopen` (LaunchServices keeps one instance), but the
 /// login item execs the binary outside LaunchServices: this lock makes that copy exit.
-// shortcut: no wait for a previous process still exiting; M5's update relaunch adds velo's `lock_wait`
-pub fn hold_instance_lock(dir: &Path) -> bool {
+pub fn hold_instance_lock(dir: &Path, wait: Duration) -> bool {
     std::fs::create_dir_all(dir).ok();
     let Ok(f) = std::fs::File::options().create(true).truncate(false).write(true).open(dir.join("instance.lock")) else { return true };
-    match f.try_lock() {
-        Ok(()) => {}
-        Err(std::fs::TryLockError::WouldBlock) => return false,
-        Err(std::fs::TryLockError::Error(e)) => eprintln!("hop: instance lock not taken ({e})"),
+    let until = std::time::Instant::now() + wait;
+    loop {
+        match f.try_lock() {
+            Ok(()) => break,
+            Err(std::fs::TryLockError::WouldBlock) if std::time::Instant::now() < until => std::thread::sleep(Duration::from_millis(100)),
+            Err(std::fs::TryLockError::WouldBlock) => return false,
+            Err(std::fs::TryLockError::Error(e)) => {
+                eprintln!("hop: instance lock not taken ({e})");
+                break;
+            }
+        }
     }
     std::mem::forget(f); // held until the process ends
     true
+}
+
+/// How long a start waits for another hop's instance lock: only the relaunch after an update (a fresh restart mark),
+/// whose old process is still exiting. Any other start that loses exits at once.
+pub fn lock_wait(fresh_mark: bool) -> Duration {
+    if fresh_mark { Duration::from_secs(5) } else { Duration::ZERO }
+}
+
+const RESTART_MARK: &str = "restart-update";
+const RESTART_MARK_TTL: Duration = Duration::from_secs(600);
+
+/// Written when an update is downloaded and about to install; the relaunch reads it (`lock_wait`) and consumes it.
+pub fn mark_restart(dir: &Path) {
+    std::fs::write(dir.join(RESTART_MARK), b"").ok();
+}
+
+/// A failed install: the next start is not a relaunch.
+pub fn clear_restart_mark(dir: &Path) {
+    std::fs::remove_file(dir.join(RESTART_MARK)).ok();
+}
+
+/// Whether a mark younger than ten minutes exists; reads only.
+pub fn restart_mark_fresh(dir: &Path) -> bool {
+    std::fs::metadata(dir.join(RESTART_MARK)).and_then(|m| m.modified()).ok().and_then(|t| t.elapsed().ok()).is_some_and(|age| age < RESTART_MARK_TTL)
+}
+
+/// True once for a mark younger than ten minutes; an older one (an install that never relaunched) is only deleted, so a
+/// later login start never waits for the lock. hop starts hidden either way: the relaunch never shows a window.
+pub fn take_restart_mark(dir: &Path) -> bool {
+    let fresh = restart_mark_fresh(dir);
+    clear_restart_mark(dir);
+    fresh
 }
 
 /// Why a login item must not point at this executable, if so. The crate writes the path unquoted and unescaped: an App
@@ -154,8 +194,30 @@ mod tests {
     #[test]
     fn a_second_holder_of_the_instance_lock_is_refused() {
         let tmp = tempfile::tempdir().unwrap();
-        assert!(hold_instance_lock(tmp.path()));
-        assert!(!hold_instance_lock(tmp.path()), "a second open of the same lock file must not take it");
+        assert!(hold_instance_lock(tmp.path(), Duration::ZERO));
+        let t = std::time::Instant::now();
+        assert!(!hold_instance_lock(tmp.path(), Duration::from_millis(300)), "a second open of the same lock file must not take it");
+        assert!(t.elapsed() >= Duration::from_millis(300), "the relaunch waits before giving up");
+    }
+
+    #[test]
+    fn only_a_fresh_restart_mark_waits_and_it_is_consumed() {
+        let d = tempfile::tempdir().unwrap();
+        assert!(!take_restart_mark(d.path()));
+        assert_eq!(lock_wait(restart_mark_fresh(d.path())), Duration::ZERO);
+        mark_restart(d.path());
+        assert_eq!(lock_wait(restart_mark_fresh(d.path())), Duration::from_secs(5));
+        assert!(take_restart_mark(d.path()));
+        assert!(!take_restart_mark(d.path()), "consumed");
+        mark_restart(d.path());
+        clear_restart_mark(d.path());
+        assert!(!take_restart_mark(d.path()), "a failed install clears it");
+        mark_restart(d.path());
+        let old = std::time::SystemTime::now() - RESTART_MARK_TTL - Duration::from_secs(5);
+        std::fs::File::options().write(true).open(d.path().join(RESTART_MARK)).unwrap().set_modified(old).unwrap();
+        assert!(!restart_mark_fresh(d.path()), "a stale mark must not make a login start wait");
+        assert!(!take_restart_mark(d.path()));
+        assert!(!d.path().join(RESTART_MARK).exists());
     }
 
     #[test]

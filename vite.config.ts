@@ -10,12 +10,13 @@ export default defineConfig(() => ({
   resolve: {
     alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
   },
-  // one page per window; whatsnew.html (M5) joins when it exists, since Vite fails on a missing input
+  // one page per window
   build: {
     rollupOptions: {
       input: {
         main: fileURLToPath(new URL("./index.html", import.meta.url)),
         settings: fileURLToPath(new URL("./settings.html", import.meta.url)),
+        whatsnew: fileURLToPath(new URL("./whatsnew.html", import.meta.url)),
       },
     },
   },

@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "whatsnew",
+  "description": "Capability for the What's new window: it only invokes its own custom commands (whatsnew_info, whatsnew_install, whatsnew_close), which are guarded in lib.rs, so it needs no core or plugin permission. Install progress arrives over a Channel, not an event.",
+  "windows": ["whatsnew"],
+  "permissions": []
+}

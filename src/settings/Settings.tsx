@@ -11,7 +11,8 @@ type Settings = {
   paletteStyle: "compact" | "roomy";
   dailyUpdateCheck: boolean;
 };
-type View = { settings: Settings; hotkeyError: string | null; login: boolean; loginRefusal: string | null; version: string };
+type View = { settings: Settings; hotkeyError: string | null; login: boolean; loginRefusal: string | null; version: string; update: string | null };
+type UpdateInfo = { version: string };
 
 const CONFLICT_HINT = "If another app (Raycast, Alfred) uses this shortcut, both will respond; change one of them.";
 
@@ -21,6 +22,8 @@ export function SettingsPage() {
   const [error, setError] = useState("");
   const [recording, setRecording] = useState(false);
   const [recMsg, setRecMsg] = useState("");
+  const [checking, setChecking] = useState(false);
+  const [checkMsg, setCheckMsg] = useState("");
   const latest = useRef<View | null>(null);
   const queue = useRef(serial()).current;
 
@@ -44,6 +47,17 @@ export function SettingsPage() {
     invoke<string | null>("pick_path", { kind }).then((p) => {
       if (p) save((s) => ({ [key]: addPath(s[key], p) }));
     });
+
+  const checkNow = () => {
+    setChecking(true);
+    setCheckMsg("");
+    invoke<UpdateInfo | null>("check_update")
+      .then(
+        (u) => setCheckMsg(u ? "" : `hop ${latest.current!.version} is up to date.`),
+        (e) => setCheckMsg(`Could not check for updates: ${e}`),
+      )
+      .finally(() => (setChecking(false), reload()));
+  };
 
   useEffect(() => {
     reload();
@@ -199,11 +213,21 @@ export function SettingsPage() {
           </label>
           <div className="row">
             <span>hop {view.version}</span>
-            <button type="button" disabled>
-              Check now
+            <button type="button" disabled={checking} onClick={checkNow}>
+              {checking ? "Checking…" : "Check now"}
             </button>
           </div>
-          <p className="row note">Update checks arrive in a later version.</p>
+          {view.update && (
+            <div className="row">
+              <span>hop {view.update} is available.</span>
+              <button type="button" onClick={() => invoke("open_whatsnew")}>
+                What's new…
+              </button>
+            </div>
+          )}
+          <p className="row note" role="status">
+            {checking ? "Checking for updates…" : checkMsg}
+          </p>
         </div>
       </section>
     </main>

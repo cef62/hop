@@ -1,6 +1,6 @@
 type Key = { key: string; isComposing: boolean; keyCode: number; metaKey: boolean; preventDefault(): void };
 
-export type Actions = { hide(): void; move(delta: number): void; open(reveal: boolean): void; settings(): void };
+export type Actions = { hide(): void; move(delta: number): void; open(reveal: boolean): void; settings(): void; update(): void };
 
 /** The palette's window-level keys. On `window`, not the input: after a Tab the input would never see Esc. */
 export function paletteKey(e: Key, a: Actions) {
@@ -19,5 +19,8 @@ export function paletteKey(e: Key, a: Actions) {
   } else if (e.metaKey && e.key === ",") {
     e.preventDefault();
     a.settings();
+  } else if (e.metaKey && e.key.toLowerCase() === "u") {
+    e.preventDefault();
+    a.update(); // the footer pill, when an update is ready
   }
 }

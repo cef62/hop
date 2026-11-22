@@ -90,15 +90,18 @@ fn main_window(app: &AppHandle) -> Option<WebviewWindow> {
 }
 
 /// What the frontend gets with `palette-shown` and `palette-hidden`: the style to apply before the next paint (so a
-/// changed setting lands while the palette is hidden), and whether to report timings (`HOP_PERF=1`).
+/// changed setting lands while the palette is hidden), whether to report timings (`HOP_PERF=1`), and the update waiting
+/// to install, for the footer pill. Read at each show: an update found while the palette is up appears at the next
+/// show, so nothing moves under the user's typing.
 #[derive(serde::Serialize, Clone)]
 struct Look {
     style: &'static str,
     perf: bool,
+    update: Option<String>,
 }
 
 fn look(app: &AppHandle) -> Look {
-    Look { style: crate::settings::palette_style(app), perf: perf_enabled() }
+    Look { style: crate::settings::palette_style(app), perf: perf_enabled(), update: crate::update::pending(app) }
 }
 
 fn perf_enabled() -> bool {
@@ -110,16 +113,17 @@ fn perf_enabled() -> bool {
 pub enum GiveBack {
     /// Hide the whole app: macOS refocuses the app that was active before (velo's trick).
     HideApp,
-    /// Activate this pid: the app the palette came up over. Used while Settings is open, which `HideApp` would hide.
+    /// Activate this pid: the app the palette came up over. Used while Settings or What's new is open, which `HideApp` would hide.
     Activate(i32),
     /// Leave the focus where it is: the palette came up over hop's own Settings window, or it lost the focus (a click
     /// on Settings or another app already moved it, and activating the old app would steal it back).
     Stay,
 }
 
-/// `blur`: the hide comes from the palette losing the focus, not from Esc, the hotkey or a launch.
-pub fn give_back(settings_open: bool, previous: Option<i32>, blur: bool) -> GiveBack {
-    match (settings_open, previous, blur) {
+/// `window_open`: Settings or What's new exists. `blur`: the hide comes from the palette losing the focus, not from Esc,
+/// the hotkey or a launch.
+pub fn give_back(window_open: bool, previous: Option<i32>, blur: bool) -> GiveBack {
+    match (window_open, previous, blur) {
         (false, _, _) => GiveBack::HideApp,
         (true, _, true) | (true, None, _) => GiveBack::Stay,
         (true, Some(pid), false) => GiveBack::Activate(pid),
@@ -163,7 +167,7 @@ fn apply(app: &AppHandle, blur: bool, step: impl FnOnce(&mut Visibility) -> Step
         Step::Hide => {
             w.hide().ok();
             #[cfg(target_os = "macos")]
-            match give_back(crate::settings::is_open(app), *PREVIOUS.lock().unwrap(), blur) {
+            match give_back(crate::settings::is_open(app) || crate::whatsnew::is_open(app), *PREVIOUS.lock().unwrap(), blur) {
                 GiveBack::HideApp => drop(app.hide()),
                 GiveBack::Activate(pid) => mac::activate(pid),
                 GiveBack::Stay => {}
@@ -172,6 +176,11 @@ fn apply(app: &AppHandle, blur: bool, step: impl FnOnce(&mut Visibility) -> Step
         }
         Step::Stay => {}
     }
+}
+
+/// Whether the palette is up: an update's relaunch waits for it to hide.
+pub fn is_shown(app: &AppHandle) -> bool {
+    app.state::<Mutex<Visibility>>().lock().unwrap_or_else(|p| p.into_inner()).shown
 }
 
 /// The hotkey: hides the palette when it is up, else shows it.
@@ -194,8 +203,8 @@ pub fn hide(app: &AppHandle) {
     apply(app, false, Visibility::hide);
 }
 
-/// Hides the palette without handing the focus to another app: Settings is about to take it.
-pub fn hide_for_settings(app: &AppHandle) {
+/// Hides the palette without handing the focus to another app: Settings or What's new is about to take it.
+pub fn hide_for_window(app: &AppHandle) {
     apply(app, true, Visibility::hide);
 }
 
