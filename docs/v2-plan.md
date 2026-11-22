@@ -43,7 +43,7 @@ What would confirm it (owner's Mac, Settings open behind another app X, palette 
 
 ## PR 2: `feat: ⌘1–9 open a result directly`
 
-- ⌘1…⌘9 open the Nth visible row; ⌘⇧1…9 reveal it in Finder (like ⌘Enter).
+- ⌘1…⌘9 open the Nth result (list position, like Raycast, even if scrolled out of view). No ⌘⇧N reveal: ⌘⇧3/4/5 are macOS screenshot shortcuts, so it would work for some digits only; ⌘Enter reveals the selection.
 - Match `e.code` (`Digit1`…) so layouts where digits need ⇧ (AZERTY) work.
 - Rows show "⌘1"… hints only while ⌘ is held; `aria-keyshortcuts` on each row.
 - Tests: key mapping (`keys.test.ts`), hints (`Palette.test.tsx`). Docs: README, site Usage shortcut table, palette footer if needed.
@@ -65,3 +65,11 @@ Recapture palette screenshots (`site/scripts/screens/`), final retrospective, en
 ## Log
 
 Retrospectives, newest last.
+
+### After PR 1 (#15, merged 2026-11-22)
+
+- Cost: one extra round. The agent first mocked `react`'s `useState` and tried to add happy-dom; both were wrong for this repo (no new dependencies, a `PaletteView`-style props seam already exists).
+- The test environment has no DOM: only static renders. Anything a test must see has to be reachable through props of a view component, not through effects or live key state.
+- The reviewer's mutation check (remove a role, rerun the tests) found real coverage gaps cheaply. Keep it in every attack list.
+- Agents report "CI not checked". The orchestrator always watches CI before merge.
+- Adjustments: briefs now say "no new dependency; extend existing seams (`PaletteView` props, pure functions in `keys.ts`/`rank.ts`)". PR 2 puts the ⌘-held state in a `PaletteView` prop so hints are testable statically. Attack lists include mutation checks.

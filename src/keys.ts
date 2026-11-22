@@ -1,6 +1,6 @@
-type Key = { key: string; isComposing: boolean; keyCode: number; metaKey: boolean; preventDefault(): void };
+type Key = { key: string; code: string; shiftKey: boolean; isComposing: boolean; keyCode: number; metaKey: boolean; preventDefault(): void };
 
-export type Actions = { hide(): void; move(delta: number): void; open(reveal: boolean): void; settings(): void; update(): void };
+export type Actions = { hide(): void; move(delta: number): void; open(reveal: boolean): void; openAt(index: number): void; settings(): void; update(): void };
 
 /** The palette's window-level keys. On `window`, not the input: after a Tab the input would never see Esc. */
 export function paletteKey(e: Key, a: Actions) {
@@ -16,6 +16,10 @@ export function paletteKey(e: Key, a: Actions) {
   } else if (e.key === "Enter") {
     e.preventDefault();
     a.open(e.metaKey); // ⌘Enter reveals in Finder
+  } else if (e.metaKey && !e.shiftKey && /^Digit[1-9]$/.test(e.code)) {
+    // `code`, not `key`: on AZERTY the digit row types symbols unless ⇧ is held. ⌘⇧3/4/5 are macOS screenshots, so ⇧ is not ours
+    e.preventDefault();
+    a.openAt(Number(e.code.slice(5)) - 1);
   } else if (e.metaKey && e.key === ",") {
     e.preventDefault();
     a.settings();
