@@ -35,7 +35,7 @@
   --icon-radius: 7px;
   --row-text: 14px;
   --selected-radius: 8px;
-  --footer-height: 0px;
+  --footer-height: 28px;
 }
 
 [data-style="roomy"] {
@@ -53,8 +53,9 @@
   --footer-height: 38px;
 }
 
-/* Compact has no footer until an update is ready (M5); Roomy always shows the key hints. */
-[data-style="compact"] .footer,
+/* Compact has no footer until an update is ready, then a thin line with the pill only; Roomy always shows the key hints. */
+[data-style="compact"]:not([data-update]) .footer,
+[data-style="compact"] .keys,
 [data-style="roomy"] .hint-label {
   display: none;
 }
@@ -185,5 +186,24 @@ body {
   padding: 0 16px;
   border-top: 1px solid var(--divider);
   font-size: 12px;
+  color: var(--text-dim);
+}
+
+.pill {
+  margin-left: auto;
+  padding: 2px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--selected-fill);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+}
+
+.pill:hover {
+  background: var(--divider);
+}
+
+.pill span {
   color: var(--text-dim);
 }
