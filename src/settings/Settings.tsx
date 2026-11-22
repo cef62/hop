@@ -11,20 +11,21 @@ type Settings = {
   paletteStyle: "compact" | "roomy";
   dailyUpdateCheck: boolean;
 };
-type View = { settings: Settings; hotkeyError: string | null; login: boolean; loginRefusal: string | null; version: string; update: string | null };
+export type View = { settings: Settings; hotkeyError: string | null; login: boolean; loginRefusal: string | null; version: string; update: string | null };
 type UpdateInfo = { version: string };
 
 const CONFLICT_HINT = "If another app (Raycast, Alfred) uses this shortcut, both will respond; change one of them.";
 
-/** Native controls laid out like macOS System Settings (plan §6). Every change is saved and applied at once; there is no Save button. */
-export function SettingsPage() {
-  const [view, setView] = useState<View | null>(null);
+/** Native controls laid out like macOS System Settings (plan §6). Every change is saved and applied at once; there is no Save button.
+ * `initial` renders the page already loaded (a static render runs no effects, so it would never fetch). */
+export function SettingsPage({ initial = null }: { initial?: View | null }) {
+  const [view, setView] = useState<View | null>(initial);
   const [error, setError] = useState("");
   const [recording, setRecording] = useState(false);
   const [recMsg, setRecMsg] = useState("");
   const [checking, setChecking] = useState(false);
   const [checkMsg, setCheckMsg] = useState("");
-  const latest = useRef<View | null>(null);
+  const latest = useRef<View | null>(initial);
   const first = useRef<HTMLHeadingElement>(null);
   const queue = useRef(serial()).current;
 
