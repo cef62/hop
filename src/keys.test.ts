@@ -2,7 +2,7 @@ import { expect, test, vi } from "vitest";
 import { paletteKey } from "./keys";
 
 const ev = (key: string, isComposing = false, keyCode = 0, metaKey = false) => ({ key, isComposing, keyCode, metaKey, preventDefault: vi.fn() });
-const actions = () => ({ hide: vi.fn(), move: vi.fn(), open: vi.fn() });
+const actions = () => ({ hide: vi.fn(), move: vi.fn(), open: vi.fn(), settings: vi.fn() });
 
 test("Esc hides from any element, Tab never moves focus off the input", () => {
   const a = actions();
@@ -33,4 +33,14 @@ test("keys during IME composition belong to the IME, not the palette", () => {
   expect(a.hide).not.toHaveBeenCalled();
   expect(a.move).not.toHaveBeenCalled();
   expect(a.open).not.toHaveBeenCalled();
+});
+
+test("⌘, opens Settings, a plain comma is typed", () => {
+  const a = actions();
+  const plain = ev(",");
+  paletteKey(plain, a);
+  expect(a.settings).not.toHaveBeenCalled();
+  expect(plain.preventDefault).not.toHaveBeenCalled();
+  paletteKey(ev(",", false, 0, true), a);
+  expect(a.settings).toHaveBeenCalledOnce();
 });

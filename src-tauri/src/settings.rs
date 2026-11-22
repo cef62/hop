@@ -303,6 +303,8 @@ pub fn open(app: &AppHandle) {
         .title("hop Settings")
         .inner_size(520.0, 640.0)
         .min_inner_size(420.0, 420.0)
+        .minimizable(false)
+        .maximizable(false)
         .center()
         .build();
     match built {
@@ -310,6 +312,20 @@ pub fn open(app: &AppHandle) {
             w.set_focus().ok();
         }
         Err(e) => eprintln!("hop: could not open Settings ({e})"),
+    }
+}
+
+/// ⌘, in the palette.
+#[tauri::command]
+pub fn open_settings(app: AppHandle) {
+    open(&app);
+}
+
+/// Esc in Settings.
+#[tauri::command]
+pub fn close_settings(app: AppHandle) {
+    if let Some(w) = app.get_webview_window(LABEL) {
+        w.close().ok();
     }
 }
 

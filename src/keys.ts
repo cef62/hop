@@ -1,6 +1,6 @@
 type Key = { key: string; isComposing: boolean; keyCode: number; metaKey: boolean; preventDefault(): void };
 
-export type Actions = { hide(): void; move(delta: number): void; open(reveal: boolean): void };
+export type Actions = { hide(): void; move(delta: number): void; open(reveal: boolean): void; settings(): void };
 
 /** The palette's window-level keys. On `window`, not the input: after a Tab the input would never see Esc. */
 export function paletteKey(e: Key, a: Actions) {
@@ -16,5 +16,8 @@ export function paletteKey(e: Key, a: Actions) {
   } else if (e.key === "Enter") {
     e.preventDefault();
     a.open(e.metaKey); // ⌘Enter reveals in Finder
+  } else if (e.metaKey && e.key === ",") {
+    e.preventDefault();
+    a.settings();
   }
 }

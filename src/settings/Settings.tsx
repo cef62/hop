@@ -68,6 +68,16 @@ export function SettingsPage() {
     return () => window.removeEventListener("keydown", onKey, true);
   }, [recording]);
 
+  // Esc closes the window; while recording, the recorder's capture listener takes Esc first
+  useEffect(() => {
+    if (recording) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !e.defaultPrevented) invoke("close_settings");
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [recording]);
+
   if (!view) return null;
   const s = view.settings;
   const list = (key: "extraFolders" | "ignoredApps", empty: string) =>
@@ -98,7 +108,7 @@ export function SettingsPage() {
   return (
     <main>
       {error && (
-        <p className="error" role="alert">
+        <p className="error banner" role="alert">
           {error}
         </p>
       )}

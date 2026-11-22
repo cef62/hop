@@ -10,8 +10,8 @@ mod panel;
 mod settings;
 
 /// What each window may invoke: the palette (`main`) and Settings, nothing in common.
-const MAIN_COMMANDS: &[&str] = &["hide_palette", "card_frame", "perf_mark", "list_apps", "frecency", "launch"];
-const SETTINGS_COMMANDS: &[&str] = &["get_settings", "set_settings", "pick_path", "set_login"];
+const MAIN_COMMANDS: &[&str] = &["hide_palette", "card_frame", "perf_mark", "list_apps", "frecency", "launch", "open_settings"];
+const SETTINGS_COMMANDS: &[&str] = &["get_settings", "set_settings", "pick_path", "set_login", "close_settings"];
 
 /// Custom commands are open to every window (no app ACL manifest in build.rs, so capabilities do not restrict them):
 /// this guard is the boundary. A command missing from both lists is denied everywhere.
@@ -116,6 +116,8 @@ pub fn run() {
             settings::get_settings,
             settings::set_settings,
             settings::pick_path,
+            settings::open_settings,
+            settings::close_settings,
             login::set_login
         ]))
         .build(tauri::generate_context!())
