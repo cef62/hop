@@ -1,0 +1,12 @@
+- main [ref=e2]:
+  - group "Theme" [ref=e4]:
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - radio "System" [ref=e8]
+        - text: System
+      - generic [ref=e9]:
+        - radio "Light" [ref=e10]
+        - text: Light
+      - generic [ref=e11]:
+        - radio "Dark" [ref=e12]
+        - text: Dark

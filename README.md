@@ -1,6 +1,19 @@
 # hop
 
-A minimal macOS app launcher. Work in progress.
+A minimal macOS app launcher for Apple silicon Macs.
+
+## Install
+
+1. Download `hop_<version>_aarch64.dmg` from the [latest release](https://github.com/cef62/hop/releases/latest).
+2. Open the dmg and drag hop to Applications.
+3. Open hop from Applications. hop is not signed with an Apple Developer ID, so macOS blocks the first launch. Either
+   go to System Settings › Privacy & Security and click **Open Anyway** next to hop, or run
+   `xattr -dr com.apple.quarantine /Applications/hop.app` and open hop again. Later versions install from inside hop
+   (see Updates below) and need neither step.
+
+hop has no Dock icon: press **⌥Space** or click its menu-bar icon.
+
+## Use
 
 - **⌥Space** shows the palette over any app, on the screen under the mouse; press it again to hide.
 - Type to find an app by name, by its English file name, or by initials (`vsc` finds Visual Studio Code). Apps you
