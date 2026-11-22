@@ -20,7 +20,7 @@ Run before every commit that finishes a task and before opening a PR. Report the
 | 4 | Staleness | no orphaned files, no unused dependencies in `package.json` or `Cargo.toml`, no docs pointing at removed code |
 | 5 | Capabilities | every file in `src-tauri/capabilities/` grants exactly what its window uses |
 
-The docs site (`site/`, built from `README.md` and `CHANGELOG.md`) runs with `pnpm site:dev`; `pnpm docs:build && pnpm site:preview` serves the production build at http://localhost:4321/hop/. Pages deploys from `main` through `.github/workflows/pages.yml`.
+The docs site (`site/`: its own pages, plus `CHANGELOG.md`; keep its Usage page in step with `README.md`) runs with `pnpm site:dev`; `pnpm docs:build && pnpm site:preview` serves the production build at http://localhost:4321/hop/. Pages deploys from `main` through `.github/workflows/pages.yml`. Screenshots in `site/src/assets/screens/` are regenerated with `site/scripts/screens/capture.mjs` (see its header) when the UI changes.
 
 Dev and installed builds share the identifier and lock on macOS: quit the installed hop before `pnpm tauri dev`.
 
