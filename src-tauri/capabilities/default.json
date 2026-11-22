@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability for the palette window: it listens for palette-shown and palette-hidden",
+  "description": "Capability for the palette window: it listens for palette-shown, palette-hidden and apps-changed (its custom commands are guarded in lib.rs)",
   "windows": ["main"],
   "permissions": ["core:event:allow-listen", "core:event:allow-unlisten"]
 }
