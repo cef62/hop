@@ -9,9 +9,9 @@ A minimal macOS app launcher for Apple silicon Macs.
 3. Open hop from Applications. hop is not signed with an Apple Developer ID, so macOS blocks the first launch. Either
    go to System Settings › Privacy & Security and click **Open Anyway** next to hop, or run
    `xattr -dr com.apple.quarantine /Applications/hop.app` and open hop again. Later versions install from inside hop
-   (see Updates below) and need neither step.
+   (see the Updates item under Use) and need neither step.
 
-hop has no Dock icon: press **⌥Space** or click its menu-bar icon.
+hop has no Dock icon: press **⌥Space** (the default hotkey) or click its menu-bar icon.
 
 ## Use
 
