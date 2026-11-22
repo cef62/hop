@@ -109,9 +109,9 @@ export function SettingsPage() {
     </div>
   );
   const radios = <K extends "theme" | "paletteStyle">(key: K, legend: string, options: [Settings[K], string][]) => (
-    <fieldset className="row">
-      <legend>{legend}</legend>
-      <span className="choices">
+    <div className="row">
+      <span id={`${key}-label`}>{legend}</span>
+      <span className="choices" role="radiogroup" aria-labelledby={`${key}-label`}>
         {options.map(([v, label]) => (
           <label key={v}>
             <input type="radio" name={key} checked={s[key] === v} onChange={() => save(() => ({ [key]: v }))} />
@@ -119,7 +119,7 @@ export function SettingsPage() {
           </label>
         ))}
       </span>
-    </fieldset>
+    </div>
   );
 
   return (
