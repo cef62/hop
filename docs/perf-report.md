@@ -5,7 +5,7 @@ indexed. Budgets from `docs/launcher-plan.md` §8.
 
 | Measure | Result | Budget |
 |---|---|---|
-| Hotkey → palette visible and typeable | p95 51.1 ms, median 29.9 ms (n = 59) | p95 < 100 ms |
+| Show handler → input painted (keypress delivery excluded) | p95 51.1 ms, median 29.9 ms (n = 59) | p95 < 100 ms |
 | Keystroke → filtered list painted | p95 2.0 ms, median 1.0 ms, max 4.0 ms (n = 46) | p95 < 16 ms |
 | Cold start → hotkey registered | 157–178 ms (3 launches) | < 1 s |
 | Idle after launch, palette hidden | CPU 0.00 %, footprint 64.6 MiB (hop 25.0 MiB) | ~0 %, < 120 MB |

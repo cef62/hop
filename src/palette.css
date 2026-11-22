@@ -2,7 +2,7 @@
 :root {
   color-scheme: light dark;
   --text: #1d1d1f;
-  /* at least 4.5:1 (WCAG AA) on the card and the selected row, measured over the hudWindow material */
+  /* at least 4.5:1 (WCAG AA) on the card and the selected row while the vibrant card renders no darker than ~#c8c8c8 */
   --text-dim: rgba(0, 0, 0, 0.62);
   --card-fill: rgba(255, 255, 255, 0.35);
   --selected-fill: rgba(0, 0, 0, 0.08);
