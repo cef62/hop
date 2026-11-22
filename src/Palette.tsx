@@ -133,7 +133,7 @@ export function Palette() {
     hide: () => invoke("hide_palette"),
     move: (d) => setSel(move(at, d, rows.length)),
     open: (reveal) => open(at, reveal),
-    openAt: (i, reveal) => open(i, reveal),
+    openAt: (i) => open(i),
     settings: () => invoke("open_settings"),
     update: () => update && invoke("open_whatsnew"),
   };
