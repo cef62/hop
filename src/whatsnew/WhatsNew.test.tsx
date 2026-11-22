@@ -18,6 +18,7 @@ test("idle: the notes as text, then Install and restart", () => {
   expect(html).toContain("Fixed y");
   expect(html).not.toContain("hints");
   expect(html).toContain("hop 0.1.0 → 0.2.0");
+  expect(html).toContain('<ul class="group items" role="list">'); // WebKit drops list semantics without bullets
   expect(html).toContain(">Install and restart</button>");
 });
 

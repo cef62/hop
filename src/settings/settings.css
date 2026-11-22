@@ -76,18 +76,27 @@ h3 {
   justify-content: flex-end;
 }
 
+.note {
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
 /* a note under the row it explains, not a row of its own */
 .row.note {
   display: block;
   min-height: 0;
   padding-top: 0;
   border-top: 0;
-  color: var(--text-dim);
-  font-size: 11px;
 }
 
-.group > .row.note:first-child {
-  padding-top: 8px;
+/* the update status stays mounted for VoiceOver; empty, it must not pad the group */
+.row.note:empty {
+  padding-bottom: 0;
+}
+
+/* a heading focused when the window opens, for VoiceOver; not a Tab stop, so no ring */
+[tabindex="-1"]:focus {
+  outline: none;
 }
 
 .recorder {
