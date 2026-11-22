@@ -43,7 +43,7 @@ What would confirm it (owner's Mac, Settings open behind another app X, palette 
 
 ## PR 2: `feat: ⌘1–9 open a result directly`
 
-- ⌘1…⌘9 open the Nth visible row; ⌘⇧1…9 reveal it in Finder (like ⌘Enter).
+- ⌘1…⌘9 open the Nth result (list position, like Raycast, even if scrolled out of view). No ⌘⇧N reveal: ⌘⇧3/4/5 are macOS screenshot shortcuts, so it would work for some digits only; ⌘Enter reveals the selection.
 - Match `e.code` (`Digit1`…) so layouts where digits need ⇧ (AZERTY) work.
 - Rows show "⌘1"… hints only while ⌘ is held; `aria-keyshortcuts` on each row.
 - Tests: key mapping (`keys.test.ts`), hints (`Palette.test.tsx`). Docs: README, site Usage shortcut table, palette footer if needed.

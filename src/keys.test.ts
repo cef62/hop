@@ -56,13 +56,15 @@ test("⌘U opens the update pill, a plain u is typed", () => {
   expect(a.update).toHaveBeenCalledTimes(2);
 });
 
-test("⌘1…⌘9 open that row, ⌘⇧1…⌘⇧9 reveal it", () => {
+test("⌘1…⌘9 open that row, ⌘⇧digit is left to the system", () => {
   const a = actions();
   const one = ev("1", false, 0, true, "Digit1");
   paletteKey(one, a);
-  paletteKey(ev("#", false, 0, true, "Digit3", true), a); // ⇧ changes key, not code
+  const shot = ev("#", false, 0, true, "Digit3", true); // macOS screenshot shortcut
+  paletteKey(shot, a);
+  expect(shot.preventDefault).not.toHaveBeenCalled();
   paletteKey(ev("9", false, 0, true, "Digit9"), a);
-  expect(a.openAt.mock.calls).toEqual([[0, false], [2, true], [8, false]]);
+  expect(a.openAt.mock.calls).toEqual([[0], [8]]);
   expect(one.preventDefault).toHaveBeenCalled();
 });
 
@@ -80,7 +82,7 @@ test("a digit without ⌘ is typed, ⌘0 is not ours", () => {
 test("AZERTY: ⌘& is Digit1", () => {
   const a = actions();
   paletteKey(ev("&", false, 0, true, "Digit1"), a);
-  expect(a.openAt).toHaveBeenCalledWith(0, false);
+  expect(a.openAt).toHaveBeenCalledWith(0);
 });
 
 test("⌘1 during IME composition belongs to the IME", () => {
