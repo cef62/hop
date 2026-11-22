@@ -2,4 +2,4 @@
 "hop": patch
 ---
 
-Settings now looks like macOS System Settings: grouped rows, switches for on/off options, in light and dark.
+Restyled Settings like macOS System Settings, with grouped rows and on/off switches in light and dark.

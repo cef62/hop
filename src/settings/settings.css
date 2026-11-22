@@ -3,7 +3,7 @@
 :root {
   color-scheme: light dark;
   --text: #1d1d1f;
-  --text-dim: rgba(0, 0, 0, 0.5);
+  --text-dim: rgba(0, 0, 0, 0.62);
   --bg: #ececec;
   --group: #f6f6f6;
   --line: rgba(0, 0, 0, 0.08);
@@ -146,6 +146,8 @@ input[type="checkbox"] {
   border-radius: 6px;
   background: var(--error-bg);
   color: var(--text);
+  -webkit-user-select: text; /* an error can be copied into a report */
+  user-select: text;
 }
 
 /* the save/pick error stays in view while the cause (Add folder…) may be scrolled down */
