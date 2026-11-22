@@ -13,22 +13,23 @@ Approved by the owner on 2026-11-22. Extends `docs/launcher-plan.md`; everything
 
 ## PR 1: `fix: small gaps`
 
-1. Settings render test (Vitest, mocked `invoke`): folder and app lists have `role="list"`, recorder messages `role="alert"`, the hotkey button's accessible name, focus starts on "General".
+1. Settings render test (Vitest, mocked `invoke`): folder and app lists have `role="list"`, the broken-hotkey message `role="alert"`, the hotkey button's accessible name, the "General" heading is focusable. Not covered (needs a DOM, no new dependency): the recorder and error alerts as rendered, focus moving to "General" after load (manual check).
 2. Docs site: `site/src/pages/404.astro` in the site's style with a link home.
 3. Settings comes to the front after a system activation: find the cause in `panel.rs` (`hide_for_window`, `give_back`). Fix with a test of the decision logic if the cause is clear; otherwise record the findings and change nothing. Timeboxed.
 4. This plan; `docs/launcher-plan.md` notes the approved v2 items.
 
 ### Findings: Settings comes forward (item 3, no code change)
 
-The cause is known; a safe fix needs a signal only a test on the owner's Mac can confirm. Already logged as Minor 3 ("accepted as a known limit") in the PR #6 review.
+The cause is known; a safe fix needs a signal only a test on the owner's Mac can confirm. Already logged as Minor 3 ("accepted as a known limit") in the [PR #6 review](https://github.com/cef62/hop/pull/6#issuecomment-7078741673).
 
 Mechanism: macOS reactivates the app that was active before a system UI took over, and activating hop orders its main window, Settings, forward. The palette is borderless, so it never becomes the main window.
 
 Paths checked:
 
 - **Blur hide while the system takes activation** (Spotlight, lock screen, a system alert, Notification Center). The palette loses the focus, `focus_changed` hides it with `blur = true` (`panel.rs:197`), and `give_back(true, Some(pid), true)` returns `Stay` (`panel.rs:128`): nothing is activated. hop was the active app, so macOS gives activation back to hop when the system UI closes, and Settings comes forward over the app the palette came up over. Most likely match for the report.
-- **`RunEvent::Reopen`** (opening hop.app again from Finder or Spotlight while it runs, `lib.rs:148`). LaunchServices activates hop before the event, so Settings comes forward first. `panel::show` then records `PREVIOUS = frontmost_other()` (`panel.rs:148`), which is `None` because hop is frontmost. Esc gives `give_back(true, None, false) = Stay`, so Settings stays in front.
+- **`RunEvent::Reopen`** (opening hop.app again from Finder or Spotlight while it runs, `lib.rs:148`). Hypothesis: LaunchServices activates hop before the event, so Settings comes forward first. `panel::show` then records `PREVIOUS = frontmost_other()` (`panel.rs:148`), which is `None` because hop is frontmost. Esc gives `give_back(true, None, false) = Stay`, so Settings stays in front.
 - **Hide before the show's activation lands.** `set_focus` asks for activation asynchronously. A hide that runs first (a double hotkey press) calls `mac::activate(pid)` while hop is not active yet, which cooperative activation (macOS 14+) may ignore. hop's pending activation then completes with the palette hidden, and Settings comes forward. Hypothesis only.
+- Not a cause: a minimized Settings (an activation does not unminimize it). Settings on another Space is untested: macOS may switch to that Space on activation.
 - Not a cause: the tray (`lib.rs:69-70`; opening the status-item menu does not activate hop), `settings::open` and `whatsnew::open` (`settings.rs:295`, `whatsnew.rs:26`; the user asked for the window), a launch (`launch.rs`; `hide` gives the focus to the previous app, then `open` activates the launched one).
 
 Why no fix now: on a blur, `give_back` cannot tell a click on Settings (keep `Stay`) from a system UI taking the key window (should be `Activate(previous)`). The candidate signals are "frontmost app is still hop at blur time" and "Settings is key at blur time". Both may lag behind the blur event, and the lock screen may report `loginwindow` as frontmost. Guessing wrong reintroduces PR #6 round 2 Major 1: a click on Settings would hand the focus to another app.
