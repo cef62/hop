@@ -19,7 +19,7 @@ fn times(n: usize, mut f: impl FnMut()) -> (f64, f64, f64) {
 #[test]
 #[ignore]
 fn scan_under_150ms() {
-    let roots = hop_lib::apps::roots();
+    let roots = hop_lib::apps::roots(&[]);
     let first = Instant::now();
     let n = hop_lib::apps::index(&roots).len();
     println!("first scan (cold-ish, includes Launch Services warm-up): {n} apps in {:.1} ms", first.elapsed().as_secs_f64() * 1000.0);

@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "settings",
+  "description": "Capability for the Settings window: it only invokes its own custom commands (get_settings, set_settings, pick_path, set_login), which are guarded in lib.rs, so it needs no core or plugin permission. The folder and app pickers run in Rust, not through the dialog plugin's JS API.",
+  "windows": ["settings"],
+  "permissions": []
+}

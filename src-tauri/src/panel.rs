@@ -134,8 +134,12 @@ fn apply(app: &AppHandle, step: impl FnOnce(&mut Visibility) -> Step) {
         }
         Step::Hide => {
             w.hide().ok();
+            // hides the whole app so macOS refocuses the previously active one; not while Settings is open, which
+            // would vanish with it
             #[cfg(target_os = "macos")]
-            app.hide().ok(); // hides the whole app so macOS refocuses the previously active one
+            if !crate::settings::is_open(app) {
+                app.hide().ok();
+            }
             w.emit("palette-hidden", look(app)).ok();
         }
         Step::Stay => {}
@@ -147,7 +151,7 @@ pub fn toggle(app: &AppHandle) {
     apply(app, Visibility::toggle);
 }
 
-/// Relaunching hop (`RunEvent::Reopen`): the entry point left when the hotkey could not be registered.
+/// Relaunching hop (`RunEvent::Reopen`) or the menu-bar icon's Open: the ways in when the hotkey is not registered.
 pub fn show(app: &AppHandle) {
     apply(app, Visibility::show);
 }
