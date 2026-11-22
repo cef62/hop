@@ -1,9 +1,20 @@
-type Key = { key: string; isComposing: boolean; keyCode: number; preventDefault(): void };
+type Key = { key: string; isComposing: boolean; keyCode: number; metaKey: boolean; preventDefault(): void };
+
+export type Actions = { hide(): void; move(delta: number): void; open(reveal: boolean): void };
 
 /** The palette's window-level keys. On `window`, not the input: after a Tab the input would never see Esc. */
-export function paletteKey(e: Key, hide: () => void) {
+export function paletteKey(e: Key, a: Actions) {
   if (e.key === "Tab") e.preventDefault(); // the input is the only focus target; leaving it strands typing
-  // Esc while composing (IME) cancels the composition. macOS WebKit sends that keydown after compositionend with
-  // isComposing false and keyCode 229 (WebKit bug 165004), so both are checked
-  else if (e.key === "Escape" && !e.isComposing && e.keyCode !== 229) hide();
+  // While composing (IME), Esc cancels the composition, Enter commits it and the arrows pick a candidate: none of them
+  // is ours. macOS WebKit sends the cancelling Esc after compositionend with isComposing false and keyCode 229
+  // (WebKit bug 165004), so both are checked
+  else if (e.isComposing || e.keyCode === 229) return;
+  else if (e.key === "Escape") a.hide();
+  else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    e.preventDefault(); // the caret stays put
+    a.move(e.key === "ArrowDown" ? 1 : -1);
+  } else if (e.key === "Enter") {
+    e.preventDefault();
+    a.open(e.metaKey); // ⌘Enter reveals in Finder
+  }
 }

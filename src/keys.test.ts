@@ -1,21 +1,36 @@
 import { expect, test, vi } from "vitest";
 import { paletteKey } from "./keys";
 
-const ev = (key: string, isComposing = false, keyCode = 0) => ({ key, isComposing, keyCode, preventDefault: vi.fn() });
+const ev = (key: string, isComposing = false, keyCode = 0, metaKey = false) => ({ key, isComposing, keyCode, metaKey, preventDefault: vi.fn() });
+const actions = () => ({ hide: vi.fn(), move: vi.fn(), open: vi.fn() });
 
 test("Esc hides from any element, Tab never moves focus off the input", () => {
-  const hide = vi.fn();
-  paletteKey(ev("Escape"), hide);
-  expect(hide).toHaveBeenCalledOnce();
+  const a = actions();
+  paletteKey(ev("Escape"), a);
+  expect(a.hide).toHaveBeenCalledOnce();
   const tab = ev("Tab");
-  paletteKey(tab, hide);
+  paletteKey(tab, a);
   expect(tab.preventDefault).toHaveBeenCalled();
-  expect(hide).toHaveBeenCalledOnce();
+  expect(a.hide).toHaveBeenCalledOnce();
 });
 
-test("Esc during IME composition cancels the composition, not the palette", () => {
-  const hide = vi.fn();
-  paletteKey(ev("Escape", true), hide);
-  paletteKey(ev("Escape", false, 229), hide); // macOS WebKit: the cancelling keydown arrives after compositionend
-  expect(hide).not.toHaveBeenCalled();
+test("arrows move the selection, Enter opens, ⌘Enter reveals", () => {
+  const a = actions();
+  paletteKey(ev("ArrowDown"), a);
+  paletteKey(ev("ArrowUp"), a);
+  expect(a.move.mock.calls).toEqual([[1], [-1]]);
+  paletteKey(ev("Enter"), a);
+  paletteKey(ev("Enter", false, 0, true), a);
+  expect(a.open.mock.calls).toEqual([[false], [true]]);
+});
+
+test("keys during IME composition belong to the IME, not the palette", () => {
+  const a = actions();
+  for (const k of ["Escape", "Enter", "ArrowDown", "ArrowUp"]) {
+    paletteKey(ev(k, true), a);
+    paletteKey(ev(k, false, 229), a); // macOS WebKit: the cancelling keydown arrives after compositionend
+  }
+  expect(a.hide).not.toHaveBeenCalled();
+  expect(a.move).not.toHaveBeenCalled();
+  expect(a.open).not.toHaveBeenCalled();
 });

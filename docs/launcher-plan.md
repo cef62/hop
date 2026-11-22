@@ -89,7 +89,7 @@ Each window gets its own capability file listing exactly what it uses. Custom co
 ### 4.3 App discovery (`apps.rs`)
 
 - Roots: `/Applications`, `/System/Applications`, `/System/Applications/Utilities`, `/Applications/Utilities`, `~/Applications`, plus user-added folders from Settings. Walk at most 2 levels deep so vendor folders (`/Applications/Adobe X/`) work. Never descend into a `.app`.
-- Display name: use the **localized name the Finder shows** (`NSFileManager displayNameAtPath:`). The owner's system is Italian, so "Impostazioni di Sistema" must match, and so must the English file name ("System Settings") as a secondary search key. Strip the `.app` suffix.
+- Display name: use the **localized name the Finder shows** (`NSFileManager displayNameAtPath:`). The owner's system is English with an Italian keyboard; on an Italian system "Impostazioni di Sistema" must match, and so must the English file name ("System Settings") as a secondary search key. Strip the `.app` suffix.
 - Watch the roots with `notify` (debounced) and push a refreshed list to the frontend when apps are installed or removed. No periodic rescan.
 - Hold the index in memory. A full scan of a few hundred apps is fast; if a cold scan on the owner's machine exceeds 150 ms, cache the list to disk and refresh in the background.
 - Ignore list in Settings (paths) for apps the owner never wants to see (helpers, uninstallers).

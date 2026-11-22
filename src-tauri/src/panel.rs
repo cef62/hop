@@ -1,6 +1,7 @@
 //! The palette window: placement, show/hide, and the macOS window setup.
 
 use std::sync::Mutex;
+use std::time::Instant;
 
 use tauri::{AppHandle, Emitter, LogicalPosition, Manager, PhysicalPosition, PhysicalSize, WebviewWindow};
 
@@ -88,12 +89,32 @@ fn main_window(app: &AppHandle) -> Option<WebviewWindow> {
     app.get_webview_window("main")
 }
 
+/// What the frontend gets with `palette-shown` and `palette-hidden`: the style to apply before the next paint (so a
+/// changed setting lands while the palette is hidden), and whether to report timings (`HOP_PERF=1`).
+#[derive(serde::Serialize, Clone)]
+struct Look {
+    style: &'static str,
+    perf: bool,
+}
+
+fn look(app: &AppHandle) -> Look {
+    Look { style: crate::settings::palette_style(app), perf: perf_enabled() }
+}
+
+fn perf_enabled() -> bool {
+    std::env::var_os("HOP_PERF").is_some()
+}
+
+/// When the last show started, for the hotkey → typeable measurement.
+static SHOW_STARTED: Mutex<Option<Instant>> = Mutex::new(None);
+
 /// Runs a `Visibility` transition and performs the step it returns.
 fn apply(app: &AppHandle, step: impl FnOnce(&mut Visibility) -> Step) {
     let step = step(&mut app.state::<Mutex<Visibility>>().lock().unwrap());
     let Some(w) = main_window(app) else { return };
     match step {
         Step::Show => {
+            *SHOW_STARTED.lock().unwrap() = Some(Instant::now());
             // positioned before it is shown, so it never flashes on the monitor it was last on
             let pos = app.cursor_position().ok().and_then(|c| {
                 let primary = app.primary_monitor().ok().flatten()?;
@@ -109,13 +130,13 @@ fn apply(app: &AppHandle, step: impl FnOnce(&mut Visibility) -> Step) {
             app.show().ok(); // undo the app.hide() of the last hide, or the window stays ordered out
             w.show().ok();
             w.set_focus().ok();
-            w.emit("palette-shown", ()).ok();
+            w.emit("palette-shown", look(app)).ok();
         }
         Step::Hide => {
             w.hide().ok();
             #[cfg(target_os = "macos")]
             app.hide().ok(); // hides the whole app so macOS refocuses the previously active one
-            w.emit("palette-hidden", ()).ok();
+            w.emit("palette-hidden", look(app)).ok();
         }
         Step::Stay => {}
     }
@@ -136,20 +157,42 @@ pub fn focus_changed(app: &AppHandle, focused: bool) {
     apply(app, |v| v.focus(focused));
 }
 
-/// Esc in the palette.
-#[tauri::command]
-pub fn hide_palette(app: AppHandle) {
-    apply(&app, Visibility::hide);
+/// Esc in the palette, or a launch.
+pub fn hide(app: &AppHandle) {
+    apply(app, Visibility::hide);
 }
 
-/// The card's rect in the window (CSS px = points, top-left origin): the vibrancy view is fitted to it, since the
-/// fixed-size window is larger than the card and a full-window blur would show around it.
 #[tauri::command]
-pub fn card_frame(window: WebviewWindow, x: f64, y: f64, width: f64, height: f64) {
+pub fn hide_palette(app: AppHandle) {
+    hide(&app);
+}
+
+/// Timings from the frontend, printed to stderr only with `HOP_PERF=1`: `shown` when the input is focused and painted
+/// after a show (measured here, from the start of the show), `key` with the keystroke → painted time in ms.
+#[tauri::command]
+pub fn perf_mark(kind: String, ms: Option<f64>) {
+    if !perf_enabled() {
+        return;
+    }
+    match (kind.as_str(), ms) {
+        ("shown", _) => {
+            if let Some(t) = SHOW_STARTED.lock().unwrap().take() {
+                eprintln!("hop perf: shown {:.1}", t.elapsed().as_secs_f64() * 1000.0);
+            }
+        }
+        ("key", Some(ms)) if ms.is_finite() => eprintln!("hop perf: key {ms:.1}"),
+        _ => {}
+    }
+}
+
+/// The card's rect in the window (CSS px = points, top-left origin) and corner radius: the vibrancy view is fitted to
+/// it, since the fixed-size window is larger than the card and a full-window blur would show around it.
+#[tauri::command]
+pub fn card_frame(window: WebviewWindow, x: f64, y: f64, width: f64, height: f64, radius: f64) {
     #[cfg(target_os = "macos")]
-    if [x, y, width, height].iter().all(|v| v.is_finite()) {
+    if [x, y, width, height, radius].iter().all(|v| v.is_finite()) {
         let w = window.clone();
-        window.run_on_main_thread(move || mac::fit_effect_view(&w, (x, y, width, height))).ok();
+        window.run_on_main_thread(move || mac::fit_effect_view(&w, (x, y, width, height), radius)).ok();
     }
 }
 
@@ -190,7 +233,7 @@ mod mac {
         ns.setLevel(NSStatusWindowLevel);
     }
 
-    pub fn fit_effect_view(w: &WebviewWindow, (x, y, width, height): (f64, f64, f64, f64)) {
+    pub fn fit_effect_view(w: &WebviewWindow, (x, y, width, height): (f64, f64, f64, f64), radius: f64) {
         let Some(content) = ns_window(w).and_then(|ns| ns.contentView()) else { return };
         let Some(blur) = content.viewWithTag(BLUR_VIEW_TAG) else { return };
         let bounds = content.bounds();
@@ -198,6 +241,10 @@ mod mac {
         let frame = NSRect::new(NSPoint::new(x, bounds.size.height - y - height), NSSize::new(width, height));
         blur.setAutoresizingMask(NSAutoresizingMaskOptions::empty());
         NSView::setFrame(&blur, frame);
+        // the styles differ in radius (12 / 16 px); window-vibrancy applied the config's radius through this same
+        // NSVisualEffectView method, which AppKit implements but does not document
+        // SAFETY: the view is window-vibrancy's NSVisualEffectView subclass, which responds to setCornerRadius:
+        let () = unsafe { objc2::msg_send![&*blur, setCornerRadius: radius] };
     }
 }
 

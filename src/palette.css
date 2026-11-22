@@ -2,23 +2,61 @@
 :root {
   color-scheme: light dark;
   --text: #1d1d1f;
+  --text-dim: rgba(0, 0, 0, 0.5);
   --placeholder: rgba(0, 0, 0, 0.4);
   --card-fill: rgba(255, 255, 255, 0.35);
+  --selected-fill: rgba(0, 0, 0, 0.08);
+  --icon-placeholder: rgba(0, 0, 0, 0.08);
+  --divider: rgba(0, 0, 0, 0.08);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     --text: #f5f5f7;
+    --text-dim: rgba(255, 255, 255, 0.5);
     --placeholder: rgba(255, 255, 255, 0.4);
     --card-fill: rgba(30, 30, 30, 0.35);
+    --selected-fill: rgba(255, 255, 255, 0.1);
+    --icon-placeholder: rgba(255, 255, 255, 0.1);
+    --divider: rgba(255, 255, 255, 0.08);
   }
 }
 
+/* Plan §4.10: the styles differ only in these variables and the footer rule below. */
 [data-style="compact"] {
   --card-width: 560px;
   --card-radius: 12px;
   --search-height: 46px;
   --search-text: 16px;
+  --search-icon: 18px;
+  --row-height: 36px;
+  --rows: 5;
+  --icon-size: 28px;
+  --icon-radius: 7px;
+  --row-text: 14px;
+  --selected-radius: 8px;
+  --footer-height: 0px;
+}
+
+[data-style="roomy"] {
+  --card-width: 600px;
+  --card-radius: 16px;
+  --search-height: 64px;
+  --search-text: 22px;
+  --search-icon: 22px;
+  --row-height: 54px;
+  --rows: 4;
+  --icon-size: 40px;
+  --icon-radius: 10px;
+  --row-text: 16px;
+  --selected-radius: 12px;
+  --footer-height: 38px;
+}
+
+/* Compact has no footer until an update is ready (M5); Roomy always shows the key hints. */
+[data-style="compact"] .footer,
+[data-style="roomy"] .hint-label {
+  display: none;
 }
 
 html,
@@ -27,6 +65,7 @@ body {
   background: transparent;
   overflow: hidden;
   font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  color: var(--text);
 }
 
 .card {
@@ -37,11 +76,29 @@ body {
   overflow: hidden;
 }
 
-.search {
-  box-sizing: border-box;
-  width: 100%;
+.search-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   height: var(--search-height);
   padding: 0 16px;
+}
+
+.search-icon {
+  flex: none;
+  width: var(--search-icon);
+  height: var(--search-icon);
+  fill: none;
+  stroke: var(--text-dim);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.search {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
   border: 0;
   outline: none;
   background: transparent;
@@ -52,4 +109,81 @@ body {
 
 .search::placeholder {
   color: var(--placeholder);
+}
+
+.message {
+  margin: 0;
+  padding: 0 16px 10px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.rows {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  border-top: 1px solid var(--divider);
+  /* the style's visible row count; the rest scrolls */
+  max-height: calc(var(--row-height) * var(--rows));
+  overflow-y: auto;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: var(--row-height);
+  padding: 0 10px;
+  border-radius: var(--selected-radius);
+  font-size: var(--row-text);
+  cursor: default;
+}
+
+.row[aria-selected="true"] {
+  background: var(--selected-fill);
+}
+
+/* neutral square until the icon loads, and for good if it never does */
+.icon {
+  flex: none;
+  width: var(--icon-size);
+  height: var(--icon-size);
+  border-radius: var(--icon-radius);
+  background: var(--icon-placeholder);
+  overflow: hidden;
+}
+
+.icon img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.icon:has(img[data-loaded]) {
+  background: none;
+}
+
+.name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.hint {
+  flex: none;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.footer {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  height: var(--footer-height);
+  padding: 0 16px;
+  border-top: 1px solid var(--divider);
+  font-size: 12px;
+  color: var(--text-dim);
 }
