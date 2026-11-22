@@ -2,8 +2,8 @@
 :root {
   color-scheme: light dark;
   --text: #1d1d1f;
-  --text-dim: rgba(0, 0, 0, 0.5);
-  --placeholder: rgba(0, 0, 0, 0.4);
+  /* at least 4.5:1 (WCAG AA) on the card and the selected row, measured over the hudWindow material */
+  --text-dim: rgba(0, 0, 0, 0.62);
   --card-fill: rgba(255, 255, 255, 0.35);
   --selected-fill: rgba(0, 0, 0, 0.08);
   --icon-placeholder: rgba(0, 0, 0, 0.08);
@@ -13,9 +13,8 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --text: #f5f5f7;
-    --text-dim: rgba(255, 255, 255, 0.5);
-    --placeholder: rgba(255, 255, 255, 0.4);
-    --card-fill: rgba(30, 30, 30, 0.35);
+    --text-dim: rgba(255, 255, 255, 0.75);
+    --card-fill: rgba(30, 30, 30, 0.55);
     --selected-fill: rgba(255, 255, 255, 0.1);
     --icon-placeholder: rgba(255, 255, 255, 0.1);
     --divider: rgba(255, 255, 255, 0.08);
@@ -87,6 +86,8 @@ body {
 
 .search-icon {
   flex: none;
+  /* centred in an app-icon-wide column, so the query starts where the app names do */
+  margin: 0 calc((var(--icon-size) - var(--search-icon)) / 2);
   width: var(--search-icon);
   height: var(--search-icon);
   fill: none;
@@ -109,7 +110,7 @@ body {
 }
 
 .search::placeholder {
-  color: var(--placeholder);
+  color: var(--text-dim);
 }
 
 .message {
