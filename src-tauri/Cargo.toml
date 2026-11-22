@@ -20,6 +20,7 @@ tauri = { version = "2", features = ["macos-private-api", "tray-icon", "image-pn
 tauri-plugin-autostart = "2.7.0"
 tauri-plugin-dialog = "2.8.4"
 tauri-plugin-global-shortcut = "2.4.1"
+tauri-plugin-updater = "2.14.1"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # the versions tauri already pulls in

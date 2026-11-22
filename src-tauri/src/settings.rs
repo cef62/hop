@@ -29,7 +29,7 @@ pub struct Settings {
     pub theme: String,
     /// the M2 key, unchanged
     pub palette_style: String,
-    /// stored only until M5's updater reads it
+    /// the daily update check (update.rs); the toggle applies at the checker's next wake
     pub daily_update_check: bool,
     /// start at login was turned on by a first run (or must be left alone); never set from the window
     pub login_applied: bool,
@@ -228,6 +228,8 @@ pub struct View {
     /// why start at login cannot be turned on from this copy of hop
     login_refusal: Option<&'static str>,
     version: String,
+    /// the version a check found, waiting to install
+    update: Option<String>,
 }
 
 #[tauri::command]
@@ -238,6 +240,7 @@ pub fn get_settings(app: AppHandle) -> View {
         login: crate::login::enabled(&app),
         login_refusal: crate::login::refusal(),
         version: app.package_info().version.to_string(),
+        update: crate::update::pending(&app),
     }
 }
 
@@ -290,7 +293,7 @@ pub fn pick_path(app: AppHandle, kind: String) -> Option<String> {
 
 /// Opens the Settings window, or brings it to the front. The palette hides first (plan §4.1).
 pub fn open(app: &AppHandle) {
-    crate::panel::hide_for_settings(app);
+    crate::panel::hide_for_window(app);
     #[cfg(target_os = "macos")]
     app.show().ok(); // undo the palette's app.hide(), or the window stays hidden
     if let Some(w) = app.get_webview_window(LABEL) {
