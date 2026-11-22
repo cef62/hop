@@ -105,6 +105,28 @@ fn perf_enabled() -> bool {
     std::env::var_os("HOP_PERF").is_some()
 }
 
+/// How a hide hands the focus back.
+#[derive(Debug, PartialEq)]
+pub enum GiveBack {
+    /// Hide the whole app: macOS refocuses the app that was active before (velo's trick).
+    HideApp,
+    /// Activate this pid: the app the palette came up over. Used while Settings is open, which `HideApp` would hide.
+    Activate(i32),
+    /// The palette came up over hop's own Settings window, which keeps the focus.
+    Stay,
+}
+
+pub fn give_back(settings_open: bool, previous: Option<i32>) -> GiveBack {
+    match (settings_open, previous) {
+        (false, _) => GiveBack::HideApp,
+        (true, Some(pid)) => GiveBack::Activate(pid),
+        (true, None) => GiveBack::Stay,
+    }
+}
+
+/// The frontmost app when the palette last showed, unless it was hop itself.
+static PREVIOUS: Mutex<Option<i32>> = Mutex::new(None);
+
 /// When the last show started, for the hotkey → typeable measurement.
 static SHOW_STARTED: Mutex<Option<Instant>> = Mutex::new(None);
 
@@ -115,6 +137,10 @@ fn apply(app: &AppHandle, step: impl FnOnce(&mut Visibility) -> Step) {
     match step {
         Step::Show => {
             *SHOW_STARTED.lock().unwrap() = Some(Instant::now());
+            #[cfg(target_os = "macos")]
+            {
+                *PREVIOUS.lock().unwrap() = mac::frontmost_other();
+            }
             // positioned before it is shown, so it never flashes on the monitor it was last on
             let pos = app.cursor_position().ok().and_then(|c| {
                 let primary = app.primary_monitor().ok().flatten()?;
@@ -134,11 +160,11 @@ fn apply(app: &AppHandle, step: impl FnOnce(&mut Visibility) -> Step) {
         }
         Step::Hide => {
             w.hide().ok();
-            // hides the whole app so macOS refocuses the previously active one; not while Settings is open, which
-            // would vanish with it
             #[cfg(target_os = "macos")]
-            if !crate::settings::is_open(app) {
-                app.hide().ok();
+            match give_back(crate::settings::is_open(app), *PREVIOUS.lock().unwrap()) {
+                GiveBack::HideApp => drop(app.hide()),
+                GiveBack::Activate(pid) => mac::activate(pid),
+                GiveBack::Stay => {}
             }
             w.emit("palette-hidden", look(app)).ok();
         }
@@ -211,7 +237,10 @@ pub fn setup(app: &AppHandle) {
 
 #[cfg(target_os = "macos")]
 mod mac {
-    use objc2_app_kit::{NSAutoresizingMaskOptions, NSStatusWindowLevel, NSView, NSWindow, NSWindowCollectionBehavior};
+    use objc2_app_kit::{
+        NSApplicationActivationOptions, NSAutoresizingMaskOptions, NSRunningApplication, NSStatusWindowLevel, NSView, NSWindow,
+        NSWindowCollectionBehavior, NSWorkspace,
+    };
     use objc2_foundation::{NSPoint, NSRect, NSSize};
     use tauri::WebviewWindow;
 
@@ -237,6 +266,19 @@ mod mac {
         ns.setLevel(NSStatusWindowLevel);
     }
 
+    /// The frontmost app's pid, unless it is hop.
+    pub fn frontmost_other() -> Option<i32> {
+        let pid = NSWorkspace::sharedWorkspace().frontmostApplication()?.processIdentifier();
+        (pid != std::process::id() as i32).then_some(pid)
+    }
+
+    /// hop is active (the palette had the focus), so macOS lets it hand activation over.
+    pub fn activate(pid: i32) {
+        if let Some(a) = NSRunningApplication::runningApplicationWithProcessIdentifier(pid) {
+            a.activateWithOptions(NSApplicationActivationOptions::empty());
+        }
+    }
+
     pub fn fit_effect_view(w: &WebviewWindow, (x, y, width, height): (f64, f64, f64, f64), radius: f64) {
         let Some(content) = ns_window(w).and_then(|ns| ns.contentView()) else { return };
         let Some(blur) = content.viewWithTag(BLUR_VIEW_TAG) else { return };
@@ -258,6 +300,17 @@ mod tests {
 
     fn mon(x: i32, y: i32, w: u32, h: u32, scale: f64) -> (PhysicalPosition<i32>, PhysicalSize<u32>, f64) {
         (PhysicalPosition::new(x, y), PhysicalSize::new(w, h), scale)
+    }
+
+    #[test]
+    fn a_hide_gives_focus_back_without_hiding_an_open_settings_window() {
+        assert_eq!(give_back(false, Some(42)), GiveBack::HideApp);
+        assert_eq!(give_back(false, None), GiveBack::HideApp);
+        // Settings is open (maybe behind other windows, minimized or on another Space): hiding the app would hide it,
+        // staying active would bring it forward; the app the palette came up over gets the focus instead
+        assert_eq!(give_back(true, Some(42)), GiveBack::Activate(42));
+        // the palette came up over hop's own Settings window: it keeps the focus
+        assert_eq!(give_back(true, None), GiveBack::Stay);
     }
 
     #[test]
