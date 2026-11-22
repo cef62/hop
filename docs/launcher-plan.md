@@ -10,7 +10,7 @@ Reference project: `/Volumes/Dev/matteo/velo` (github.com/cef62/velo, same owner
 
 **Goal.** Press `⌥Space`, a small centered palette appears, type to fuzzy-filter installed apps, Enter launches the selected one, Esc or click-away hides it. Starts hidden at login. Updates itself with a "What's new" dialog before install. Clean, neat, minimal.
 
-**Non-goals for v1 (do not build, do not "prepare for"):** clipboard history, calculator, web search, file search, snippets, window management, plugins or extensions, AI, aliases/quicklinks, ⌘1–9 shortcuts, themes beyond system light/dark, Windows and Linux. A feature outside this plan needs the owner's OK first.
+**Non-goals for v1 (do not build, do not "prepare for"):** clipboard history, calculator, web search, file search, snippets, window management, plugins or extensions, AI, aliases/quicklinks, ⌘1–9 shortcuts, themes beyond system light/dark, Windows and Linux. A feature outside this plan needs the owner's OK first. ⌘1–9 shortcuts and the calculator were approved for v2 on 2026-11-22 (see `docs/v2-plan.md`).
 
 **Platform.** macOS, Apple silicon only. Put OS-specific code (app discovery, icons, panel window) behind one small module boundary so another OS can be added later, but do not write a trait hierarchy now.
 
