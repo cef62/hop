@@ -60,7 +60,7 @@ Every user-visible change ships with a changeset (`pnpm changeset`, file under `
 
 ## Stack
 
-React 19 + Vite, plain CSS using CSS variables (`--sk-*` for Sakuga colors). Sakuga VFX controls are vendored in `public/sakuga-vfx/`, loaded as classic `<script>` tags, never edited, split or minified, and used only in the Settings and What's new windows. The palette window uses no Sakuga. No Panda CSS, no Park UI.
+React 19 + Vite, plain CSS using CSS variables. The Settings and What's new windows use native HTML controls styled to look like macOS (plan §6); no component library, no Panda CSS, no Park UI.
 
 ## Workflow
 
