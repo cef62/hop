@@ -1,8 +1,8 @@
 import { expect, test, vi } from "vitest";
 import { paletteKey } from "./keys";
 
-const ev = (key: string, isComposing = false, keyCode = 0, metaKey = false) => ({ key, isComposing, keyCode, metaKey, preventDefault: vi.fn() });
-const actions = () => ({ hide: vi.fn(), move: vi.fn(), open: vi.fn(), settings: vi.fn(), update: vi.fn() });
+const ev = (key: string, isComposing = false, keyCode = 0, metaKey = false, code = "", shiftKey = false) => ({ key, code, isComposing, keyCode, metaKey, shiftKey, preventDefault: vi.fn() });
+const actions = () => ({ hide: vi.fn(), move: vi.fn(), open: vi.fn(), openAt: vi.fn(), settings: vi.fn(), update: vi.fn() });
 
 test("Esc hides from any element, Tab never moves focus off the input", () => {
   const a = actions();
@@ -54,4 +54,38 @@ test("⌘U opens the update pill, a plain u is typed", () => {
   paletteKey(ev("u", false, 0, true), a);
   paletteKey(ev("U", false, 0, true), a); // caps lock
   expect(a.update).toHaveBeenCalledTimes(2);
+});
+
+test("⌘1…⌘9 open that row, ⌘⇧1…⌘⇧9 reveal it", () => {
+  const a = actions();
+  const one = ev("1", false, 0, true, "Digit1");
+  paletteKey(one, a);
+  paletteKey(ev("#", false, 0, true, "Digit3", true), a); // ⇧ changes key, not code
+  paletteKey(ev("9", false, 0, true, "Digit9"), a);
+  expect(a.openAt.mock.calls).toEqual([[0, false], [2, true], [8, false]]);
+  expect(one.preventDefault).toHaveBeenCalled();
+});
+
+test("a digit without ⌘ is typed, ⌘0 is not ours", () => {
+  const a = actions();
+  const typed = ev("1", false, 0, false, "Digit1");
+  paletteKey(typed, a);
+  const zero = ev("0", false, 0, true, "Digit0");
+  paletteKey(zero, a);
+  expect(a.openAt).not.toHaveBeenCalled();
+  expect(typed.preventDefault).not.toHaveBeenCalled();
+  expect(zero.preventDefault).not.toHaveBeenCalled();
+});
+
+test("AZERTY: ⌘& is Digit1", () => {
+  const a = actions();
+  paletteKey(ev("&", false, 0, true, "Digit1"), a);
+  expect(a.openAt).toHaveBeenCalledWith(0, false);
+});
+
+test("⌘1 during IME composition belongs to the IME", () => {
+  const a = actions();
+  paletteKey(ev("1", true, 0, true, "Digit1"), a);
+  paletteKey(ev("1", false, 229, true, "Digit1"), a);
+  expect(a.openAt).not.toHaveBeenCalled();
 });

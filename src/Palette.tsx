@@ -17,6 +17,8 @@ type ViewProps = {
   rows: App[];
   sel: number;
   error: string;
+  /** ⌘ is held: rows 1–9 show their ⌘N key in place of "↵ open" */
+  cmd?: boolean;
   /** the version waiting to install: the footer shows its pill */
   update?: string | null;
   onQuery(q: string, timeStamp: number): void;
@@ -28,7 +30,7 @@ type ViewProps = {
 };
 
 /** The card. Both styles render the same markup; `data-style` only switches CSS variables and the footer rule. */
-export function PaletteView({ style, query, rows, sel, error, update, onQuery, onOpen, onUpdate, input, card, list }: ViewProps) {
+export function PaletteView({ style, query, rows, sel, error, cmd, update, onQuery, onOpen, onUpdate, input, card, list }: ViewProps) {
   return (
     <div className="card" data-style={style} data-update={update ? "" : undefined} ref={card}>
       <label className="search-row">
@@ -58,7 +60,11 @@ export function PaletteView({ style, query, rows, sel, error, update, onQuery, o
       {rows.length > 0 && (
         <ul className="rows" id="rows" role="listbox" aria-label="Apps" ref={list}>
           {rows.map((a, i) => (
-            <li key={a.path} id={`row-${i}`} className="row" role="option" aria-selected={i === sel} onClick={() => onOpen(i)}>
+            <li key={a.path} id={`row-${i}`} className="row" role="option"
+              aria-selected={i === sel}
+              aria-keyshortcuts={i < 9 ? `Meta+${i + 1}` : undefined}
+              onClick={() => onOpen(i)}
+            >
               <span className="icon">
                 <img
                   src={convertFileSrc(a.path, "icon")}
@@ -69,10 +75,16 @@ export function PaletteView({ style, query, rows, sel, error, update, onQuery, o
                 />
               </span>
               <span className="name">{a.name}</span>
-              {i === sel && (
+              {cmd && i < 9 ? (
                 <span className="hint" aria-hidden="true">
-                  ↵<span className="hint-label"> open</span>
+                  ⌘{i + 1}
                 </span>
+              ) : (
+                i === sel && (
+                  <span className="hint" aria-hidden="true">
+                    ↵<span className="hint-label"> open</span>
+                  </span>
+                )
               )}
             </li>
           ))}
@@ -80,7 +92,7 @@ export function PaletteView({ style, query, rows, sel, error, update, onQuery, o
       )}
       <div className="footer">
         <span className="keys" aria-hidden="true">
-          ↵ open · ⌘↵ reveal in Finder · esc close
+          ↵ open · ⌘↵ reveal in Finder · ⌘1–9 open · esc close
         </span>
         {update && (
           // not a Tab stop (the input keeps the focus): ⌘U is its key
@@ -101,6 +113,7 @@ export function Palette() {
   const [sel, setSel] = useState(0);
   const [error, setError] = useState("");
   const [update, setUpdate] = useState<string | null>(null);
+  const [cmd, setCmd] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const card = useRef<HTMLDivElement>(null);
   const list = useRef<HTMLUListElement>(null);
@@ -120,6 +133,7 @@ export function Palette() {
     hide: () => invoke("hide_palette"),
     move: (d) => setSel(move(at, d, rows.length)),
     open: (reveal) => open(at, reveal),
+    openAt: (i, reveal) => open(i, reveal),
     settings: () => invoke("open_settings"),
     update: () => update && invoke("open_whatsnew"),
   };
@@ -143,20 +157,29 @@ export function Palette() {
         setQuery("");
         setSel(0);
         setError("");
+        setCmd(false);
       }),
     ];
     subs[0].then(() => invoke<Index>("list_apps").then(take));
     loadFrecency();
     const onKey = (e: KeyboardEvent) => paletteKey(e, actions.current);
+    const onMeta = (e: KeyboardEvent) => e.key === "Meta" && setCmd(e.type === "keydown");
+    const onBlur = () => setCmd(false); // a ⌘ keyup that lands in another window never reaches us
     // the window is larger than the card and its transparent margin still takes clicks: treat them as a click outside
     const onDown = (e: PointerEvent) => {
       // composedPath is fixed at dispatch, so a node React removes during the event still counts as inside
       if (!card.current || !e.composedPath().includes(card.current)) invoke("hide_palette");
     };
     window.addEventListener("keydown", onKey);
+    window.addEventListener("keydown", onMeta);
+    window.addEventListener("keyup", onMeta);
+    window.addEventListener("blur", onBlur);
     window.addEventListener("pointerdown", onDown);
     return () => {
       window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keydown", onMeta);
+      window.removeEventListener("keyup", onMeta);
+      window.removeEventListener("blur", onBlur);
       window.removeEventListener("pointerdown", onDown);
       subs.forEach((s) => s.then((off) => off()));
     };
@@ -194,6 +217,7 @@ export function Palette() {
       rows={rows}
       sel={at}
       error={error}
+      cmd={cmd}
       update={update}
       onUpdate={actions.current.update}
       onQuery={(q, t) => {
