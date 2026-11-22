@@ -220,6 +220,8 @@ Every milestone is its own feature branch and PR, runs the quality gate, has a c
 
 **M7, Polish.** Visual pass against the minimal brief, accessibility (VoiceOver labels, focus order, reduced motion), README with install and Gatekeeper steps, memory/CPU report. Decide with the owner whether to add `docs:check` and e2e (Playwright, as velo has) or leave them out.
 
+Docs site (owner request 2026-11-22): hop has a static documentation site on GitHub Pages (`site/`, Astro, workflow `.github/workflows/pages.yml`) built from `README.md` and `CHANGELOG.md`, with no live demo, recipes or e2e. Docs and release topics stay in the README and CHANGELOG; the site only renders them.
+
 ## 10. Open items for the owner
 
 None blocking. Decided, not open: app name `hop`; macOS only; no Apple Developer ID; menu-bar icon always on; **both palette styles ship (Compact default, Roomy), switchable in Settings** (§4.10).

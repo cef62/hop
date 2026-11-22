@@ -1,0 +1,18 @@
+---
+import Base from '../layouts/Base.astro';
+// Astro 7's markdown module exposes `Content` as a named export.
+import { Content as ReadmeContent, getHeadings } from '../../../README.md';
+
+// remark-drop-preamble removes the README title and intro, so the TOC starts at Install.
+const headings = getHeadings().filter((h) => h.depth === 2);
+---
+
+<Base title="Usage · hop" description="Install hop, and use its shortcuts, Settings and updates.">
+  <article class="prose">
+    <h1>Usage</h1>
+    <p class="toc">
+      {headings.map((h, i) => <>{i > 0 && ' · '}<a href={`#${h.slug}`}>{h.text}</a></>)}
+    </p>
+    <ReadmeContent />
+  </article>
+</Base>

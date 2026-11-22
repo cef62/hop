@@ -1,0 +1,23 @@
+---
+import Base from '../layouts/Base.astro';
+import icon from '../../../src-tauri/icons/icon.png';
+import { getDownload } from '../lib/release';
+
+const dl = await getDownload();
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+---
+
+<Base title="hop — a minimal app launcher for macOS">
+  <section class="hero">
+    <img src={icon.src} width="96" height="96" alt="" />
+    <h1>hop</h1>
+    <p class="lede">A minimal macOS app launcher for Apple silicon Macs. Press <kbd>⌥Space</kbd>, type, press Enter.</p>
+    <p>
+      <a class="button" href={dl.dmg}>Download for macOS{dl.version ? ` (v${dl.version})` : ''}</a>
+    </p>
+    <p class="muted">
+      Apple silicon only. hop is not signed with an Apple Developer ID, so macOS blocks the first launch:{" "}
+      <a href={`${base}/usage/#install`}>install steps and the Gatekeeper workaround</a>.
+    </p>
+  </section>
+</Base>

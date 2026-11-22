@@ -1,6 +1,6 @@
 # hop
 
-A minimal macOS app launcher for Apple silicon Macs.
+A minimal macOS app launcher for Apple silicon Macs. Docs: <https://cef62.github.io/hop/>.
 
 ## Install
 
