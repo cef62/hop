@@ -1,5 +1,12 @@
 # hop
 
+## 0.2.0
+
+### Minor Changes
+
+- a50e36f: Added a calculator: type a sum such as 2+3*4 to see the answer above the apps, and press Enter to copy it.
+- b53ce3e: Added ⌘1–9 to open a result directly; hold ⌘ to see the numbers.
+
 ## 0.1.2
 
 ### Patch Changes
