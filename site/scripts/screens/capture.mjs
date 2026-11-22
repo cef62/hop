@@ -1,4 +1,4 @@
-// Regenerates site/src/assets/screens/*.png. Needs a Playwright with WebKit (the app's engine) and `pnpm dev`
+// Regenerates site/src/assets/screens/*.jpg. Needs a Playwright with WebKit (the app's engine) and `pnpm dev`
 // running at the repo root. Example: NODE_PATH=/path/to/node_modules node capture.mjs  (or import from your install)
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
