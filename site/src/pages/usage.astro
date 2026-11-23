@@ -133,7 +133,7 @@ const keys = [
         <h3>History</h3>
         <Shot name="palette-history" alt="The hop palette with the query “=”: five past sums, each as an expression, an equals sign and its result, such as “12*7+3 = 87”, with “Enter edit” at the right of the first." caption="Typing = lists your copied results." />
         <ul>
-          <li>hop keeps the last 20 results you copied. Under a sum, the latest 5 show below its answer, as <code>expression = result</code>. <code>2+2</code> and <code>2 + 2</code> are one entry.</li>
+          <li>hop keeps the last 20 results you copied. Under a sum, up to 5 of the latest show below its answer (not the one you are typing), as <code>expression = result</code>. <code>2+2</code> and <code>2 + 2</code> are one entry.</li>
           <li>Type <code>=</code> alone to see all 20.</li>
           <li><kbd>Enter</kbd> (or <kbd>⌘1</kbd> to <kbd>⌘9</kbd>, or a click) on a history row puts its expression in the field, so you can edit it. The palette stays open.</li>
           <li><kbd>⌘Enter</kbd> inserts its result. After an operator, <code>1+</code> becomes <code>1+87</code> (a sum that waits for its last number lists history too). On <code>=</code> or an empty field, the result replaces it. Under a complete sum or a number there is no place for it, so <kbd>⌘Enter</kbd> does nothing and the palette does not offer it.</li>
