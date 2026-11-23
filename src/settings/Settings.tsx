@@ -42,6 +42,8 @@ export function SettingsPage({ initial = null }: { initial?: View | null }) {
       (v) => (show(v), setError("")),
       (e) => (setError(String(e)), reload()),
     );
+  /** `on` is read in the handler: by the time the queue runs the patch, React has put the controlled checkbox back. */
+  const saveChecked = (key: "systemCommands" | "calculator" | "dailyUpdateCheck", on: boolean) => save(() => ({ [key]: on }));
   const setLogin = (enabled: boolean) =>
     queue(() => invoke<boolean>("set_login", { enabled })).then(
       () => (setError(""), reload()),
@@ -211,11 +213,11 @@ export function SettingsPage({ initial = null }: { initial?: View | null }) {
         <div className="group">
           <label className="row">
             System commands
-            <input type="checkbox" {...toggle} checked={s.systemCommands} onChange={(e) => save(() => ({ systemCommands: e.target.checked }))} />
+            <input type="checkbox" {...toggle} checked={s.systemCommands} onChange={(e) => saveChecked("systemCommands", e.target.checked)} />
           </label>
           <label className="row">
             Calculator
-            <input type="checkbox" {...toggle} checked={s.calculator} onChange={(e) => save(() => ({ calculator: e.target.checked }))} />
+            <input type="checkbox" {...toggle} checked={s.calculator} onChange={(e) => saveChecked("calculator", e.target.checked)} />
           </label>
         </div>
       </section>
@@ -240,7 +242,7 @@ export function SettingsPage({ initial = null }: { initial?: View | null }) {
         <div className="group">
           <label className="row">
             Check every day
-            <input type="checkbox" {...toggle} checked={s.dailyUpdateCheck} onChange={(e) => save(() => ({ dailyUpdateCheck: e.target.checked }))} />
+            <input type="checkbox" {...toggle} checked={s.dailyUpdateCheck} onChange={(e) => saveChecked("dailyUpdateCheck", e.target.checked)} />
           </label>
           <div className="row">
             <span>hop {view.version}</span>
