@@ -25,8 +25,9 @@ hop has no Dock icon: press **⌥Space** (the default hotkey) or click its menu-
   Settings on it (Privacy & Security, General › Storage). Sections match by their name in each of your Mac's
   languages and in English, carry a "System Settings" tag, and rank with the apps.
 - System commands: Lock Screen (`lock`), Sleep, Restart (`reboot`), Shut Down (`shutdown`, `power off`), Log Out
-  (`logout`, `sign out`) and Empty Trash (`trash`), matched by their English names and rank with the apps. Lock
-  Screen and Sleep run on **Enter**. Restart, Shut Down, Log Out and Empty Trash ask for a second **Enter**: the row
+  (`logout`, `sign out`) and Empty Trash (`trash`). They match their English names and their Italian, Spanish,
+  German and French names (`Riavvia`, `Neustart`), and rank with the apps. Lock Screen and Sleep run on **Enter**.
+  Restart, Shut Down, Log Out and Empty Trash ask for a second **Enter**: the row
   reads "Press Enter again to restart", and any other key, a click or a new query cancels. Commands never show in the
   list you see with nothing typed. Apps with unsaved work can still stop a restart, shut down or log out. The first
   Empty Trash asks you to let hop control Finder (macOS may ask for Restart, Shut Down and Log Out too); hop is not

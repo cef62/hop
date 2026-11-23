@@ -45,7 +45,7 @@ export const boost = (f = 0): number => (0.9 * f) / (f + 1);
  * summed scores under every key that is a prefix of `q`, so "me" → Meet also holds for "meet" but not for "m"). A
  * pick only counts for an item that matches `q` as a contiguous run (tier 2 and up): through scattered letters, a
  * pick for "s" would put Sleep first for "sp". Then best match tier over name and alt names, plus the frecency boost;
- * then shorter name, then A–Z.
+ * then an app before a command (a short command name must not win a tie: Enter on Sleep sleeps the Mac); then shorter name, then A–Z.
  */
 export function search(query: string, items: Prepared[], frecency: Frecency, picks: Picks = {}, limit = LIMIT): Item[] {
   const q = fold(query.trim());
@@ -67,7 +67,7 @@ export function search(query: string, items: Prepared[], frecency: Frecency, pic
     if (t) hits.push({ item, score: t + boost(fr(item)), pick: p >= PICK_FORGET ? p : 0 });
   }
   return hits
-    .sort((a, b) => b.pick - a.pick || b.score - a.score || a.item.name.length - b.item.name.length || a.item.name.localeCompare(b.item.name))
+    .sort((a, b) => b.pick - a.pick || b.score - a.score || +(a.item.kind === "command") - +(b.item.kind === "command") || a.item.name.length - b.item.name.length || a.item.name.localeCompare(b.item.name))
     .slice(0, limit)
     .map((h) => h.item);
 }

@@ -1,4 +1,4 @@
-//! System commands: Lock Screen, Sleep, Restart, Shut Down, Log Out, Empty Trash. Palette items (English names only)
+//! System commands: Lock Screen, Sleep, Restart, Shut Down, Log Out, Empty Trash. Palette items (English display names; alt names add Italian, Spanish, German and French)
 //! that `run` executes. The four that end the session or delete files carry a `confirm` prompt: the palette sends them
 //! only after a second Enter.
 
@@ -10,12 +10,12 @@ use crate::apps::{Item, Kind};
 type Row = (&'static str, &'static str, &'static [&'static str], Option<&'static str>);
 
 const TABLE: [Row; 6] = [
-    ("cmd:lock", "Lock Screen", &["lock"], None),
-    ("cmd:sleep", "Sleep", &[], None),
-    ("cmd:restart", "Restart", &["reboot"], Some("Press Enter again to restart")),
-    ("cmd:shutdown", "Shut Down", &["shutdown", "power off"], Some("Press Enter again to shut down")),
-    ("cmd:logout", "Log Out", &["logout", "sign out"], Some("Press Enter again to log out")),
-    ("cmd:empty-trash", "Empty Trash", &["trash"], Some("Press Enter again to empty the Trash")),
+    ("cmd:lock", "Lock Screen", &["lock", "Blocca schermo", "Bloquear pantalla", "Bildschirm sperren", "Verrouiller l’écran"], None),
+    ("cmd:sleep", "Sleep", &["Reposo", "Sospendi", "Standby", "Ruhezustand", "Suspendre l’activité"], None),
+    ("cmd:restart", "Restart", &["reboot", "Riavvia", "Reiniciar", "Neustart", "Neu starten", "Redémarrer"], Some("Press Enter again to restart")),
+    ("cmd:shutdown", "Shut Down", &["shutdown", "power off", "Spegni", "Apagar", "Ausschalten", "Éteindre"], Some("Press Enter again to shut down")),
+    ("cmd:logout", "Log Out", &["logout", "sign out", "Esegui il logout", "Esci", "Cerrar sesión", "Abmelden", "Fermer la session"], Some("Press Enter again to log out")),
+    ("cmd:empty-trash", "Empty Trash", &["trash", "Svuota il Cestino", "Vaciar papelera", "Papierkorb entleeren", "Vider la corbeille"], Some("Press Enter again to empty the Trash")),
 ];
 
 /// The command items, for the index when "System commands" is on. No `path`: the palette draws their glyphs.
@@ -233,12 +233,12 @@ mod tests {
     fn commands_table_is_exact() {
         let row = |i: Item| format!("{:?} {} | {} | {} | {:?} | {:?}", i.kind, i.id, i.name, i.alt_names.join(", "), i.confirm, i.path);
         assert_eq!(items().into_iter().map(row).collect::<Vec<_>>(), [
-            "Command cmd:lock | Lock Screen | lock | None | None",
-            "Command cmd:sleep | Sleep |  | None | None",
-            "Command cmd:restart | Restart | reboot | Some(\"Press Enter again to restart\") | None",
-            "Command cmd:shutdown | Shut Down | shutdown, power off | Some(\"Press Enter again to shut down\") | None",
-            "Command cmd:logout | Log Out | logout, sign out | Some(\"Press Enter again to log out\") | None",
-            "Command cmd:empty-trash | Empty Trash | trash | Some(\"Press Enter again to empty the Trash\") | None",
+            "Command cmd:lock | Lock Screen | lock, Blocca schermo, Bloquear pantalla, Bildschirm sperren, Verrouiller l’écran | None | None",
+            "Command cmd:sleep | Sleep | Reposo, Sospendi, Standby, Ruhezustand, Suspendre l’activité | None | None",
+            "Command cmd:restart | Restart | reboot, Riavvia, Reiniciar, Neustart, Neu starten, Redémarrer | Some(\"Press Enter again to restart\") | None",
+            "Command cmd:shutdown | Shut Down | shutdown, power off, Spegni, Apagar, Ausschalten, Éteindre | Some(\"Press Enter again to shut down\") | None",
+            "Command cmd:logout | Log Out | logout, sign out, Esegui il logout, Esci, Cerrar sesión, Abmelden, Fermer la session | Some(\"Press Enter again to log out\") | None",
+            "Command cmd:empty-trash | Empty Trash | trash, Svuota il Cestino, Vaciar papelera, Papierkorb entleeren, Vider la corbeille | Some(\"Press Enter again to empty the Trash\") | None",
         ]);
     }
 

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 import { LIMIT, PICK_KEY, PICK_FORGET, boost, move, pickKey, prepare, search, strong, type Item, type Picks } from "./rank";
 
@@ -211,4 +212,63 @@ test("strong: only a prefix, word-start or exact match of a query that starts wi
   expect(strong("7-", p())).toBe(false);
   expect(strong("vsc", p("Visual Studio Code"))).toBe(false); // initials, tier 3
   expect(strong("sual", p("Visual Studio Code"))).toBe(false); // substring, tier 2
+});
+
+
+describe("system command names in other languages", () => {
+  // The fixture is the Rust table itself, so the two cannot drift.
+  const rust = readFileSync(new URL("../src-tauri/src/commands.rs", import.meta.url), "utf8");
+  const cmds: Item[] = [...rust.matchAll(/^\s+\("(cmd:[\w-]+)", "([^"]+)", &\[([^\]]*)\],/gm)].map((m) => ({
+    kind: "command",
+    id: m[1],
+    name: m[2],
+    altNames: [...m[3].matchAll(/"([^"]+)"/g)].map((a) => a[1]),
+  }));
+  const names = [
+    "Calculator", "Calendar", "Mail", "Maps", "Messages", "Music", "Notes", "Photos", "Podcasts", "Preview", "Reminders", "Shortcuts",
+    "Safari", "Stickies", "Stocks", "Steam", "Slack", "Spotify", "Standard Notes", "Stats", "Settings", "Sublime Text", "Reeder", "Replay",
+    "Raycast", "Rider", "Netflix", "Notion", "Blender", "Bildschirmfoto", "Abstract", "Ableton Live", "Apple Music", "App Store", "Logic Pro",
+    "Terminal", "Telegram", "PowerPoint", "Stopwatch", "Monitor de Actividad", "Moniteur d’activité", "Capture d’écran", "Temps d’écran",
+    "Captura de pantalla", "Cattura Schermata", "Festplattenutility", "Promemoria", "Erinnerungen", "Rappels", "Réglages Système",
+    "Systemeinstellungen",
+  ];
+  const all = prepare([...names.map((n) => app(n)), ...cmds]);
+  const appsOnly = prepare(names.map((n) => app(n)));
+
+  test("the table has the 6 commands and 34 alt names", () => {
+    expect(cmds).toHaveLength(6);
+    expect(cmds.flatMap((c) => c.altNames)).toHaveLength(5 + 5 + 6 + 6 + 7 + 5); // with the English alts
+  });
+
+  test.each(cmds.flatMap((c) => c.altNames.map((a) => [a, c.id] as const)))("%s finds %s", (name, id) => {
+    expect(search(name, all, {})[0].id).toBe(id);
+    expect(search(name.toUpperCase(), all, {})[0].id).toBe(id);
+  });
+
+  test("folded spellings still match", () => {
+    expect(search("eteindre", all, {})[0].id).toBe("cmd:shutdown");
+    expect(search("redemarrer", all, {})[0].id).toBe("cmd:restart");
+    expect(search("verrouiller l’ecran", all, {})[0].id).toBe("cmd:lock");
+    expect(search("sospendi", all, {})[0].id).toBe("cmd:sleep");
+  });
+
+  test("a command never beats an app that ties it", () => {
+    for (const [q, app] of [["su", "Sublime Text"], ["activ", "Moniteur d’activité"], ["pan", "Captura de pantalla"], ["fe", "Festplattenutility"], ["pow", "PowerPoint"], ["log", "Logic Pro"]])
+      expect(search(q, all, {})[0].name, q).toBe(app);
+    expect(["Capture d’écran", "Temps d’écran"]).toContain(search("ecran", all, {})[0].name); // both apps tie: shorter name
+    for (const [q, id] of [["riavvia", "cmd:restart"], ["lock", "cmd:lock"], ["sospendi", "cmd:sleep"]]) expect(search(q, all, {})[0].id).toBe(id);
+  });
+
+  test("no 2-letter prefix or word-start prefix (2-6 letters) of an app puts Lock Screen or Sleep first, and a first-word prefix never puts any command first", () => {
+    for (const a of names)
+      for (const [wi, w] of a.split(/[^\p{L}\p{N}]+/u).filter(Boolean).entries())
+        for (let n = 2; n <= Math.min(6, w.length); n++) {
+          const q = w.slice(0, n);
+          if (!search(q, appsOnly, {}).length) continue;
+          const top = search(q, all, {})[0];
+          // a later word starts at tier 4; a command's own prefix (tier 5, confirmed by a second Enter) may outrank it
+          if (wi > 0 && top.kind === "command" && top.id !== "cmd:lock" && top.id !== "cmd:sleep") continue;
+          expect(top.kind, `${q} -> ${top.name}`).toBe("app");
+        }
+  });
 });
