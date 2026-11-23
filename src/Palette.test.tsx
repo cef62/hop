@@ -13,8 +13,8 @@ const rows = search("fi", prepare(apps), {});
 /** Renders `style` after pressing `keys`, through the same key handler and selection logic the palette uses. */
 function render(style: Style, keys: string[], update: string | null = null, cmd = false, list = rows) {
   let sel = 0;
-  const actions = { hide() {}, move: (d: number) => (sel = move(sel, d, rows.length)), open() {}, openAt() {}, settings() {}, update() {} };
-  for (const key of keys) paletteKey({ key, code: "", isComposing: false, keyCode: 0, metaKey: false, shiftKey: false, preventDefault() {} }, actions);
+  const actions = { hide() {}, move: (d: number) => (sel = move(sel, d, rows.length)), open() {}, openAt() {}, settings() {}, update() {}, disarm() {} };
+  for (const key of keys) paletteKey({ key, code: "", isComposing: false, keyCode: 0, metaKey: false, shiftKey: false, repeat: false, preventDefault() {} }, actions);
   const html = renderToStaticMarkup(<PaletteView style={style} query="fi" rows={list} cmd={cmd} sel={sel} error="" update={update} onQuery={() => {}} onOpen={() => {}} />);
   return { sel, html: html.replace(`data-style="${style}"`, "") };
 }
@@ -127,4 +127,38 @@ test("sections share the System Settings icon but render keyed by id, tagged, op
   expect(html).toContain('<span class="keys" aria-hidden="true">↵ open · ⌘1–9 open · esc close</span>');
   const onApp = renderToStaticMarkup(<PaletteView {...props} sel={2} />);
   expect(onApp).toContain("⌘↵ reveal in Finder");
+});
+
+const cmd = (id: string, name: string, confirm?: string): Item => ({ kind: "command", id: `cmd:${id}`, name, altNames: [], confirm });
+const commands = [cmd("restart", "Restart", "Press Enter again to restart"), cmd("lock", "Lock Screen"), app("Safari")];
+
+test("an armed row reads its confirm copy, to the eye and to VoiceOver", () => {
+  const view = (armed: string | null, sel = 0) =>
+    renderToStaticMarkup(<PaletteView style="roomy" query="re" rows={commands} armed={armed} sel={sel} error="" onQuery={() => {}} onOpen={() => {}} />);
+  const armed = view("cmd:restart");
+  expect(armed).toMatch(
+    /<li id="row-0" class="row" role="option" aria-selected="true" aria-keyshortcuts="Meta\+1" aria-label="Press Enter again to restart">.*<span class="name">Press Enter again to restart<\/span><span class="hint" aria-hidden="true">↵<span class="hint-label"> confirm<\/span>/,
+  );
+  expect(armed).toContain('<p class="status" role="status">Press Enter again to restart</p>');
+  expect(armed).toContain('<span class="keys" aria-hidden="true">↵ confirm · esc close</span>');
+  // not armed: the name, a "run" hint, and an empty live region that is already there to announce the next arming
+  const idle = view(null);
+  expect(idle).not.toContain("Press Enter again");
+  expect(idle).toContain('<span class="name">Restart</span><span class="hint" aria-hidden="true">↵<span class="hint-label"> run<');
+  expect(idle).toContain('<p class="status" role="status"></p>');
+  expect(idle).toContain('<span class="keys" aria-hidden="true">↵ run · ⌘1–9 open · esc close</span>');
+  // an armed id that left the list (the switch turned commands off) shows nothing
+  expect(view("cmd:gone")).toEqual(idle);
+  // armed but no longer selected: the row keeps its copy, the footer follows the selection
+  const away = view("cmd:restart", 2);
+  expect(away).toContain('aria-label="Press Enter again to restart"');
+  expect(away).toContain("⌘↵ reveal in Finder");
+});
+
+test("command rows draw a glyph, request no icon, and run by id", () => {
+  const html = renderToStaticMarkup(<PaletteView style="compact" query="l" rows={commands} sel={1} error="" onQuery={() => {}} onOpen={() => {}} />);
+  expect(html.match(/<span class="icon glyph" aria-hidden="true"><svg viewBox="0 0 24 24">/g)).toHaveLength(2);
+  expect(html.match(/<img/g)).toHaveLength(1); // Safari only
+  expect(html).not.toContain("icon://localhost/\""); // no request for an empty path
+  expect(command(1, null, commands, false)).toEqual(["run", { id: "cmd:lock", reveal: false }]);
 });
