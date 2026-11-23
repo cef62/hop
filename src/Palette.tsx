@@ -84,8 +84,8 @@ export function PaletteView({ style, query, rows, result, sel, error, cmd, updat
           className="search"
           value={query}
           onChange={(e) => onQuery(e.target.value, e.timeStamp)}
-          placeholder="Search apps"
-          aria-label="Search apps"
+          placeholder="Search apps and settings"
+          aria-label="Search apps and settings"
           aria-controls="rows"
           aria-activedescendant={count ? `row-${sel}` : undefined}
           autoFocus

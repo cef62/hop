@@ -17,7 +17,7 @@
 - Tests run without a DOM: logic goes in pure functions; what a test must see goes through `PaletteView` props.
 - Every PR updates tests, `README.md`, `site/src/pages/usage.astro` (and `index.astro` cards when relevant) and adds a `minor` changeset for user-visible features.
 - New Tauri commands go in `MAIN_COMMANDS` only (`src-tauri/src/lib.rs`), except settings reads/writes already in `SETTINGS_COMMANDS`.
-- Command names are English only. Section names: system language as `name`, English in `altNames` when different.
+- Command names are English only. Section names: the first preferred language found as `name`, the other preferred languages and English in `altNames` (distinct only).
 - Confirm copy, verbatim: "Press Enter again to restart", "Press Enter again to shut down", "Press Enter again to log out", "Press Enter again to empty the Trash".
 - History: max 20 stored, 5 shown under a live result, 20 shown for the query `=`.
 - Settings keys `systemCommands` and `calculator`, both default `true`; a settings file without them reads as `true`.
@@ -61,12 +61,12 @@
 
 **Interfaces:**
 - Produces: `pub const ROOT: &str = "/System/Library/ExtensionKit/Extensions"`; `pub const SETTINGS_APP: &str = "/System/Applications/System Settings.app"`; `pub fn scan(root: &Path, langs: &[String]) -> Vec<Item>` (pure over the filesystem: reads each `*.appex/Contents/Info.plist` and `Contents/Resources/InfoPlist.loctable` with `NSDictionary::dictionaryWithContentsOfFile`, XML or binary); `pub fn index() -> Vec<Item>` (real root, `NSLocale::preferredLanguages`); `pub fn bundle_id(id: &str) -> Option<&str>` (strips `pane:`).
-- Pane item: `kind: Pane`, `id: "pane:<CFBundleIdentifier>"`, `path: Some(SETTINGS_APP)`, `name` from the first of `langs` found in the loctable (try `it_IT` then `it` for `it-IT`), English `altNames` entry when different; skipped without a name; kept only when `EXAppExtensionAttributes.EXExtensionPointIdentifier == "com.apple.Settings.extension.ui"` and `SettingsExtensionAttributes.allowsXAppleSystemPreferencesURLScheme == true`.
+- Pane item: `kind: Pane`, `id: "pane:<CFBundleIdentifier>"`, `path: Some(SETTINGS_APP)`, `name` from the first of `langs` found in the loctable (fallback chain in the spec: exact region, script/Latin America region, bare language, any region), the other languages' and English names in `altNames`; sidebar names from `Localizable.loctable` when there is no bundle name; skipped without a name; kept only when `EXAppExtensionAttributes.EXExtensionPointIdentifier == "com.apple.Settings.extension.ui"` and `EXAppExtensionAttributes.SettingsExtensionAttributes.allowsXAppleSystemPreferencesURLScheme == true` (nested).
 
 - [ ] **Step 1: Write failing tests** with XML plist fixtures under a temp dir: `keeps_settings_sections_with_url_scheme` (one valid bundle → one item `id == "pane:com.apple.settings.PrivacySecurity.extension"`, `name == "Privacy e sicurezza"`, `alt_names == ["Privacy & Security"]` for `langs = ["it-IT", "en"]`); `skips_other_extension_points`; `skips_sections_without_url_scheme`; `skips_sections_without_a_name`; `english_system_has_no_alt_name`. Plus `#[cfg(target_os = "macos")] real_scan_finds_privacy` (skipped when `ROOT` is missing) asserting an item with id `pane:com.apple.settings.PrivacySecurity.extension` exists.
 - [ ] **Step 2: Run** `cargo test panes::` — FAIL.
 - [ ] **Step 3: Implement** `scan`/`index`; scan runs where `refresh` already runs (off the main thread).
-- [ ] **Step 4: Run** `cargo test` — PASS; print the real scan's count once in a test with `--nocapture` and note it in the PR (spec expects 52 on macOS 26).
+- [ ] **Step 4: Run** `cargo test` — PASS; print the real scan's count once in a test with `--nocapture` and note it in the PR (built: 50 on macOS 27.2).
 - [ ] **Step 5: Commit** `feat: index System Settings sections`.
 
 ### Task 3: `run` and the palette rows

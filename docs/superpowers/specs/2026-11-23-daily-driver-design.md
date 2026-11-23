@@ -14,7 +14,7 @@ Everything is found by plain typing in the same palette, ranked with the apps. I
 
 ## Goals
 
-- **System Settings sections.** Every section System Settings lets an app link to (52 on macOS 26, not only the sidebar ones) is a palette item, matched by its name in the system language and in English (as apps are today). Enter opens System Settings on that section.
+- **System Settings sections.** Every section System Settings lets an app link to (50 on macOS 27.2, not only the sidebar ones) is a palette item, matched by its name in each of the user's preferred languages and in English. Enter opens System Settings on that section.
 - **System commands.** Lock Screen, Sleep, Restart, Shut Down, Log Out, Empty Trash, matched by their English names and aliases ("reboot", "shutdown", "power off", "logout", "sign out"). Lock Screen and Sleep run on Enter. Restart, Shut Down, Log Out and Empty Trash ask for a second Enter in the palette.
 - **Calculator history.** The last 20 copied results are kept across restarts. While the query is a sum, the live result row is followed by the 5 most recent history rows. The query `=` alone lists all 20.
   - Enter (or ⌘1–9) on a history row replaces the query with that row's expression.
@@ -60,8 +60,9 @@ The calculator history is frontend state plus a small Rust store, independent of
 
 ### System Settings sections
 
-- Scan `/System/Library/ExtensionKit/Extensions/*.appex`. Keep a bundle when its `Info.plist` has `EXAppExtensionAttributes.EXExtensionPointIdentifier == "com.apple.Settings.extension.ui"` and `SettingsExtensionAttributes.allowsXAppleSystemPreferencesURLScheme == true`.
-- Names come from `Contents/Resources/InfoPlist.loctable` (a binary plist keyed by language), key `CFBundleDisplayName`: the system language's name is `name`, the English one goes in `altNames` when it differs. A section with no name in either language is skipped (for example `PowerPreferences` has none; the builder checks whether another source gives it one).
+- Scan `/System/Library/ExtensionKit/Extensions/*.appex`. Keep a bundle when its `Info.plist` has `EXAppExtensionAttributes.EXExtensionPointIdentifier == "com.apple.Settings.extension.ui"` and `EXAppExtensionAttributes.SettingsExtensionAttributes.allowsXAppleSystemPreferencesURLScheme == true` (built: the attributes are nested, not top-level).
+- Names come from `Contents/Resources/InfoPlist.loctable` (a binary plist keyed by language), key `CFBundleDisplayName`. Built: per preferred language, then English, the lookup tries the exact region (`it-IT` → `it_IT`), the region the loctables use for a script or Latin America (`zh-Hant` → `zh_TW`/`zh_HK`, `zh-Hans` → `zh_CN`, `es-MX` → `es_419`), the bare language, then any region of it (`en_AU` when there is no `en`). The first name found is `name`; the other distinct names go in `altNames`. A name equal to a `CFBundleExecutable` that ends in `Extension` (Headphones) is no name.
+- A section without a bundle name uses its sidebar rows' names: `SettingsExtensionAttributes.representations[].sidebar-name`, resolved in `Localizable.loctable` (Battery: "Battery", "Energy"; the `powersource.battery == YES` row is shown, its predicate not evaluated). A section with no name at all is skipped (Headphones on macOS 27.2; Home lacks the URL-scheme flag).
 - Open with `open "x-apple.systempreferences:<CFBundleIdentifier>"`. The builder verifies the URL form on macOS 26 for a few sections, including one under General (Storage).
 - Scanned at startup, off the main thread. macOS updates restart the Mac, so no watcher is needed.
 - Icon: the System Settings app icon through the existing icon protocol, with a "System Settings" tag on the row.

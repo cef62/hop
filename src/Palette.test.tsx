@@ -117,6 +117,8 @@ test("sections share the System Settings icon but render keyed by id, tagged, op
   const props = { style: "compact" as Style, query: "s", rows: list, sel: 0, error: "", onQuery() {}, onOpen() {} };
   expect(rowKeys(PaletteView(props))).toEqual(["pane:a", "pane:b", settings]);
   const html = renderToStaticMarkup(<PaletteView {...props} />);
+  // the field searches more than apps now, and VoiceOver reads its label
+  expect(html).toContain('placeholder="Search apps and settings" aria-label="Search apps and settings"');
   expect(html.match(/<span class="tag">System Settings<\/span>/g)).toHaveLength(2); // the app row has no tag
   expect(html.match(/src="icon:\/\/localhost\/%2FSystem%2FApplications%2FSystem%20Settings.app"/g)).toHaveLength(3);
   expect(command(0, null, list, true)).toEqual(["run", { id: "pane:a", reveal: true }]);
