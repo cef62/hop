@@ -3,12 +3,13 @@ import { listen } from "@tauri-apps/api/event";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { calc } from "./calc";
 import { live, step, type Event, type State } from "./confirm";
+import { leads, rowAt, total, type Entry, type Lead, type Row } from "./leads";
 import { paletteKey, type Actions } from "./keys";
 import { move, prepare, search, type Frecency, type Item } from "./rank";
 
 export type Style = "compact" | "roomy";
 type Index = { generation: number; items: Item[] };
-type Look = { style: Style; perf: boolean; update: string | null };
+type Look = { style: Style; perf: boolean; update: string | null; calculator: boolean };
 
 /** After the next paint: rAF runs before it, the timeout right after. */
 const afterPaint = (f: () => void) => requestAnimationFrame(() => setTimeout(f, 0));
@@ -17,8 +18,8 @@ type ViewProps = {
   style: Style;
   query: string;
   rows: Item[];
-  /** the calculator's answer to the query: a row above the apps, so row indexes count it */
-  result?: string | null;
+  /** the rows above the items (the calculator's answer, past results), so row indexes count them */
+  leads?: Lead[];
   sel: number;
   /** the command waiting for its second Enter */
   armed?: string | null;
@@ -35,24 +36,23 @@ type ViewProps = {
   list?: React.Ref<HTMLUListElement>;
 };
 
-/** The card. Both styles render the same markup; `data-style` only switches CSS variables and the footer rule. */
-/** What row `i` of the list is: the calculator result (row 0 when there is one) or an item. */
-export const rowAt = (i: number, result: string | null | undefined, rows: Item[]) => (result == null ? rows[i] : i === 0 ? result : rows[i - 1]);
-export const total = (rows: Item[], result: string | null) => rows.length + (result === null ? 0 : 1);
-
-/** The command Enter (⌘Enter: `reveal`) sends for row `i`. The result row copies (there is nothing to reveal) and so
- * records no launch. */
-export function command(i: number, result: string | null, rows: Item[], reveal: boolean): [string, Record<string, unknown>] | null {
-  const r = rowAt(i, result, rows);
-  if (typeof r === "string") return ["copy_text", { text: r }];
-  return r ? ["run", { id: r.id, reveal }] : null;
+/** The command Enter (⌘Enter: `reveal`) sends for row `i`, or null: past the end, or a history row (the reducer edits
+ * the query for it, `step` in confirm.ts). The result row copies (there is nothing to reveal) and records the copy
+ * under its expression, but no launch. */
+export function command(i: number, lead: Lead[], rows: Item[], reveal: boolean, query: string): [string, Record<string, unknown>] | null {
+  const r = rowAt(i, lead, rows);
+  if (!r || r.kind === "history") return null;
+  if (r.kind === "result") return ["copy_text", { text: r.text, expr: query.trim() }];
+  return ["run", { id: r.id, reveal }];
 }
 
 /** The footer's keys for the selected row: only an app has a Finder location to reveal. */
-const footer = (r: Item | string | undefined, armed: string | null | undefined) =>
-  typeof r === "string"
+export const footer = (r: Row, armed: string | null | undefined) =>
+  r?.kind === "result"
     ? "↵ copy · ⌘1–9 open · esc close"
-    : r?.confirm && r.id === armed
+    : r?.kind === "history"
+      ? "↵ edit · ⌘↵ insert · ⌘1–9 pick · esc close"
+      : r?.confirm && r.id === armed
       ? "↵ confirm · esc close"
       : r?.kind === "command"
         ? "↵ run · ⌘1–9 open · esc close"
@@ -95,10 +95,10 @@ const GLYPHS: Record<string, React.ReactNode> = {
   ),
 };
 
-export function PaletteView({ style, query, rows, result, sel, armed, error, cmd, update, onQuery, onOpen, onUpdate, input, card, list }: ViewProps) {
+export function PaletteView({ style, query, rows, leads: lead = [], sel, armed, error, cmd, update, onQuery, onOpen, onUpdate, input, card, list }: ViewProps) {
   const prompt = rows.find((a) => a.confirm && a.id === armed)?.confirm ?? "";
-  const off = result == null ? 0 : 1;
-  const count = rows.length + off;
+  const off = lead.length;
+  const count = total(rows, lead);
   const option = (i: number) => ({
     id: `row-${i}`,
     className: "row",
@@ -147,14 +147,30 @@ export function PaletteView({ style, query, rows, result, sel, armed, error, cmd
       )}
       {count > 0 && (
         <ul className="rows" id="rows" role="listbox" aria-label="Results" ref={list}>
-          {result != null && (
-            <li key="=" {...option(0)} aria-label={`Result ${result}, press Enter to copy`}>
-              <span className="icon calc" aria-hidden="true">
-                =
-              </span>
-              <span className="name">= {result}</span>
-              {hint(0, "copy")}
-            </li>
+          {lead.map((l, i) =>
+            l.kind === "result" ? (
+              <li key="=" {...option(i)} aria-label={`Result ${l.text}, press Enter to copy`}>
+                <span className="icon calc" aria-hidden="true">
+                  =
+                </span>
+                <span className="name">= {l.text}</span>
+                {hint(i, "copy")}
+              </li>
+            ) : (
+              // an expression may repeat a pane or app id never: the "history:" prefix keeps the key space apart
+              <li key={`history:${l.expr}`} {...option(i)} aria-label={`${l.expr} equals ${l.result}, press Enter to edit it, Command Enter to insert the result`}>
+                <span className="icon glyph" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="8" />
+                    <path d="M12 8v4l3 2" />
+                  </svg>
+                </span>
+                <span className="name">
+                  {l.expr} = {l.result}
+                </span>
+                {hint(i, "edit")}
+              </li>
+            ),
           )}
           {rows.map((a, j) => {
             const armedRow = a.confirm && a.id === armed;
@@ -190,7 +206,7 @@ export function PaletteView({ style, query, rows, result, sel, armed, error, cmd
       </p>
       <div className="footer">
         <span className="keys" aria-hidden="true">
-          {footer(rowAt(sel, result, rows), armed)}
+          {footer(rowAt(sel, lead, rows), armed)}
         </span>
         {update && (
           // not a Tab stop (the input keeps the focus): ⌘U is its key
@@ -213,26 +229,35 @@ export function Palette() {
   const [armed, setArmed] = useState<State["armed"]>(null);
   const [update, setUpdate] = useState<string | null>(null);
   const [cmd, setCmd] = useState(false);
+  const [history, setHistory] = useState<Entry[]>([]);
+  const [calculator, setCalculator] = useState(true);
   const input = useRef<HTMLInputElement>(null);
   const card = useRef<HTMLDivElement>(null);
   const list = useRef<HTMLUListElement>(null);
   const perf = useRef(false);
+  /** the query was replaced by a history row: the input takes the focus back (a click blurred it) with the caret last */
+  const caret = useRef(false);
   const keyAt = useRef<number | null>(null);
 
   const items = useMemo(() => prepare(index.items), [index]);
   const rows = useMemo(() => search(query, items, frecency), [query, items, frecency]);
-  const result = useMemo(() => calc(query), [query]);
-  const count = total(rows, result);
+  const lead = useMemo(() => leads(query, calculator ? calc(query) : null, history, calculator), [query, history, calculator]);
+  const count = total(rows, lead);
   const at = Math.min(sel, Math.max(count - 1, 0)); // the list can shrink under the selection (app removed)
 
-  const row = (i: number) => rowAt(i, result, rows);
+  const row = (i: number) => rowAt(i, lead, rows);
   // through a ref: the window listeners below are set up once and must see this render's state
   const send = useRef<(ev: Event) => void>(null!);
   send.current = (ev) => {
     const o = step({ armed, sel: at }, ev, row, query);
     setArmed(o.armed);
     setSel(o.sel);
-    const c = o.run === null ? null : command(o.run, result, rows, ev.type === "enter" && ev.meta); // ⌘Enter reveals
+    if (o.query !== undefined) {
+      setQuery(o.query); // a history row: edit the sum in place, the palette stays open
+      setError("");
+      caret.current = o.query !== query; // no change, no effect to consume the flag
+    }
+    const c = o.run === null ? null : command(o.run, lead, rows, ev.type === "enter" && ev.meta, query); // ⌘Enter reveals
     if (c) invoke(...c).catch((e) => setError(String(e)));
   };
   const actions = useRef<Actions>(null!);
@@ -253,13 +278,16 @@ export function Palette() {
       listen<Look>("palette-shown", (e) => {
         setStyle(e.payload.style);
         setUpdate(e.payload.update);
+        setCalculator(e.payload.calculator);
         perf.current = e.payload.perf;
         input.current?.focus();
         loadFrecency();
+        invoke<Entry[]>("calc_history").then(setHistory, () => setHistory([]));
         if (perf.current) afterPaint(() => invoke("perf_mark", { kind: "shown" }));
       }),
       listen<Look>("palette-hidden", (e) => {
         setStyle(e.payload.style); // a changed setting applies while hidden, before the next show paints
+        setCalculator(e.payload.calculator);
         setQuery("");
         setError("");
         send.current({ type: "hidden" });
@@ -292,6 +320,14 @@ export function Palette() {
     };
   }, []);
 
+  useLayoutEffect(() => {
+    const el = input.current;
+    if (!caret.current || !el) return;
+    caret.current = false;
+    el.focus();
+    el.setSelectionRange(query.length, query.length);
+  }, [query]);
+
   useEffect(() => {
     list.current?.children[at]?.scrollIntoView({ block: "nearest" });
   }, [at, rows]);
@@ -322,7 +358,7 @@ export function Palette() {
       style={style}
       query={query}
       rows={rows}
-      result={result}
+      leads={lead}
       sel={at}
       armed={live({ armed, sel: at }, row, query)}
       error={error}

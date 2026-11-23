@@ -33,6 +33,9 @@ pub fn load(file: &Path) -> Vec<Entry> {
     let text = std::fs::read_to_string(file).unwrap_or_default();
     let mut list: Vec<Entry> = serde_json::from_str(&text).unwrap_or_default();
     list.retain(valid);
+    // a hand-edited file: the first (newest) of a repeated expression stays, as `record` would have it
+    let mut seen = std::collections::HashSet::new();
+    list.retain(|e| seen.insert(e.expr.clone()));
     list.truncate(KEEP);
     list
 }
@@ -128,6 +131,8 @@ mod tests {
         let many: Vec<Entry> = (0..30).map(|i| e(&format!("{i}+1"))).chain([e(""), e("   "), e(&"1+".repeat(101))]).collect();
         save(&file, &many).unwrap();
         assert_eq!(load(&file).len(), KEEP);
+        save(&file, &[e("1+1"), e("2+2"), Entry { expr: "1+1".into(), result: "9".into() }]).unwrap();
+        assert_eq!(load(&file), [e("1+1"), e("2+2")]);
     }
 
     #[test]
