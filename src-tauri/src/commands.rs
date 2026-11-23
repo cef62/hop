@@ -134,7 +134,11 @@ impl Effects for System {
     }
 
     fn lock(&mut self) {
-        crate::panel::on_main(&self.0, |_| mac::locker().map(|lock| lock()));
+        crate::panel::on_main(&self.0, |_| {
+            #[cfg(target_os = "macos")]
+            debug_assert!(objc2::MainThreadMarker::new().is_some(), "lock called off the main thread");
+            mac::locker().map(|lock| lock())
+        });
     }
 
     fn sleep(&mut self) -> std::io::Result<()> {

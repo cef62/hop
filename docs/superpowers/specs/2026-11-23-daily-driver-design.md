@@ -124,7 +124,7 @@ Each PR keeps README, the site's Usage and home pages and the tests current. Rel
 
 ## Calls made after the builder check
 
-- ⌘Enter on a section or command acts like Enter; `reveal` stays an app-only path. On an armed row only a plain Enter confirms; ⌘Enter, like any other key, disarms.
+- ⌘Enter on a section or command acts like Enter; `reveal` stays an app-only path. On an armed row only a plain Enter confirms; ⌘Enter arms, like ⌘N, and never confirms (built in round 1: on an armed row it keeps it armed).
 - Row order: live result, history rows, then items. ⌘1–9 number rows in that order (generalize `rowAt`/`total` from one leading result row to a leading block). A history row equal to the live row is not shown. On `=` the first history row is selected.
 - macOS 13 or later for sections (ExtensionKit). On older systems the scan finds nothing and sections are absent; no `.prefPane` fallback.
 - Command execution: Lock Screen and Sleep hide the palette, then run. Restart, Shut Down, Log Out and Empty Trash send their Apple Event, hide on success, and keep the palette open with the error if sending fails. Apps that later cancel a restart for unsaved work are macOS's business, not an error.

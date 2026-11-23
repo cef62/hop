@@ -138,6 +138,9 @@ static SHOW_STARTED: Mutex<Option<Instant>> = Mutex::new(None);
 
 /// Runs a `Visibility` transition and performs the step it returns. `blur`: see `give_back`.
 fn apply(app: &AppHandle, blur: bool, step: impl FnOnce(&mut Visibility) -> Step) {
+    // AppKit (the window, app.hide, activation) only on the main thread: an async command goes through `on_main`
+    #[cfg(target_os = "macos")]
+    debug_assert!(objc2::MainThreadMarker::new().is_some(), "palette shown or hidden off the main thread");
     let step = step(&mut app.state::<Mutex<Visibility>>().lock().unwrap());
     let Some(w) = main_window(app) else { return };
     match step {
