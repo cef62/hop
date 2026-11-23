@@ -1,5 +1,5 @@
 import { expect, test, vi } from "vitest";
-import { live, press, step, type Row, type State } from "./confirm";
+import { live, press, step, type Event, type Row, type State } from "./confirm";
 import { paletteKey } from "./keys";
 import type { Item } from "./rank";
 
@@ -90,10 +90,10 @@ test("armed only while the armed command is the selected row", () => {
 test('"re" Enter, then "a": the key and the query change disarm, so the next Enter opens the new top row', () => {
   let s: State = step(idle(1), enter, row);
   expect(s.armed).toBe(restart.id);
-  const disarm = vi.fn(() => (s = step(s, { type: "key" }, row)));
-  const actions = { hide() {}, move() {}, open() {}, openAt() {}, settings() {}, update() {}, disarm };
+  const send = vi.fn((ev: Event) => (s = step(s, ev, row)));
+  const actions = { hide() {}, move() {}, settings() {}, update() {}, send };
   paletteKey({ key: "a", code: "KeyA", shiftKey: false, isComposing: false, keyCode: 65, metaKey: false, repeat: false, preventDefault() {} }, actions);
-  expect(disarm).toHaveBeenCalledOnce();
+  expect(send).toHaveBeenCalledExactlyOnceWith({ type: "key" });
   expect(s.armed).toBeNull();
   // a paste or dictation sends no key: the query change alone disarms
   s = step(armedAt1, { type: "query" }, row);

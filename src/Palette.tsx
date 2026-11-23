@@ -227,23 +227,21 @@ export function Palette() {
 
   const row = (i: number) => rowAt(i, result, rows);
   // through a ref: the window listeners below are set up once and must see this render's state
-  const send = useRef<(ev: Event, reveal?: boolean) => void>(null!);
-  send.current = (ev, reveal = false) => {
+  const send = useRef<(ev: Event) => void>(null!);
+  send.current = (ev) => {
     const o = step({ armed, sel: at }, ev, row);
     setArmed(o.armed);
     setSel(o.sel);
-    const c = o.run === null ? null : command(o.run, result, rows, reveal);
+    const c = o.run === null ? null : command(o.run, result, rows, ev.type === "enter" && ev.meta); // ⌘Enter reveals
     if (c) invoke(...c).catch((e) => setError(String(e)));
   };
   const actions = useRef<Actions>(null!);
   actions.current = {
     hide: () => invoke("hide_palette"),
     move: (d) => setSel(move(at, d, count)),
-    open: (meta, repeat) => send.current({ type: "enter", meta, repeat }, meta),
-    openAt: (i) => send.current({ type: "nth", i }),
+    send: (ev) => send.current(ev),
     settings: () => invoke("open_settings"),
     update: () => update && invoke("open_whatsnew"),
-    disarm: () => send.current({ type: "key" }),
   };
 
   useEffect(() => {

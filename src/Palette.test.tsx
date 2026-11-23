@@ -14,7 +14,7 @@ const rows = search("fi", prepare(apps), {});
 /** Renders `style` after pressing `keys`, through the same key handler and selection logic the palette uses. */
 function render(style: Style, keys: string[], update: string | null = null, cmd = false, list = rows) {
   let sel = 0;
-  const actions = { hide() {}, move: (d: number) => (sel = move(sel, d, rows.length)), open() {}, openAt() {}, settings() {}, update() {}, disarm() {} };
+  const actions = { hide() {}, move: (d: number) => (sel = move(sel, d, rows.length)), send() {}, settings() {}, update() {} };
   for (const key of keys) paletteKey({ key, code: "", isComposing: false, keyCode: 0, metaKey: false, shiftKey: false, repeat: false, preventDefault() {} }, actions);
   const html = renderToStaticMarkup(<PaletteView style={style} query="fi" rows={list} cmd={cmd} sel={sel} error="" update={update} onQuery={() => {}} onOpen={() => {}} />);
   return { sel, html: html.replace(`data-style="${style}"`, "") };
