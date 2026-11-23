@@ -1,5 +1,15 @@
 # hop
 
+## 0.4.0
+
+### Minor Changes
+
+- 9dc368a: System commands now also answer to their Italian, Spanish, German and French names, such as Riavvia or Neustart.
+
+### Patch Changes
+
+- 408bf39: Sums like 1- keep their calculator history even when an app name contains a dash or a bracket.
+
 ## 0.3.2
 
 ### Patch Changes
