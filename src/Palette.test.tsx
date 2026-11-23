@@ -152,7 +152,7 @@ test("an armed row reads its confirm copy, to the eye and to VoiceOver", () => {
   expect(view("cmd:gone")).toEqual(idle);
   // the palette passes only a live arming (`live`: the armed row is the selected one), so the view never shows a prompt
   // on one row while Enter acts on another
-  expect(view(live({ armed: "cmd:restart", sel: 2 }, (i) => commands[i]), 2)).toEqual(view(null, 2));
+  expect(view(live({ armed: { id: "cmd:restart", q: "re" }, sel: 2 }, (i) => commands[i], "re"), 2)).toEqual(view(null, 2));
 });
 
 test("command rows draw a glyph, request no icon, and run by id", () => {

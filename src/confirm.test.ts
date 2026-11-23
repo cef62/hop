@@ -39,64 +39,71 @@ test("arming a second command while one is armed arms only the second", () => {
 const list: Row[] = ["42", restart, lock, app];
 const row = (i: number) => list[i];
 const idle = (sel: number): State => ({ armed: null, sel });
-const armedAt1: State = { armed: restart.id, sel: 1 };
+/** Restart armed at row 1, under the query "re". */
+const A = { id: restart.id, q: "re" };
+const armedAt1: State = { armed: A, sel: 1 };
+const go = (s: State, ev: Event, at = row, q = "re") => step(s, ev, at, q);
+const alive = (s: State, at: (i: number) => Row, q = "re") => live(s, at, q);
 const enter = { type: "enter" as const, meta: false, repeat: false };
 
 test("Enter arms a confirm row, a second plain Enter runs it", () => {
-  expect(step(idle(1), enter, row)).toEqual({ armed: restart.id, sel: 1, run: null });
-  expect(step(armedAt1, enter, row)).toEqual({ armed: null, sel: 1, run: 1 });
+  expect(go(idle(1), enter, row)).toEqual({ armed: A, sel: 1, run: null });
+  expect(go(armedAt1, enter, row)).toEqual({ armed: null, sel: 1, run: 1 });
   // rows without a prompt run on the first Enter: the answer, Lock Screen, an app
-  for (const i of [0, 2, 3]) expect(step(idle(i), enter, row)).toEqual({ armed: null, sel: i, run: i });
+  for (const i of [0, 2, 3]) expect(go(idle(i), enter, row)).toEqual({ armed: null, sel: i, run: i });
   // past the end (no rows): nothing
-  expect(step(idle(9), enter, row)).toEqual({ armed: null, sel: 9, run: null });
+  expect(go(idle(9), enter, row)).toEqual({ armed: null, sel: 9, run: null });
 });
 
 test("a held Enter's repeats never confirm: they disarm", () => {
-  expect(step(armedAt1, { ...enter, repeat: true }, row)).toEqual({ armed: null, sel: 1, run: null });
-  expect(step(idle(1), { ...enter, repeat: true }, row)).toEqual({ armed: null, sel: 1, run: null });
+  expect(go(armedAt1, { ...enter, repeat: true }, row)).toEqual({ armed: null, sel: 1, run: null });
+  expect(go(idle(1), { ...enter, repeat: true }, row)).toEqual({ armed: null, sel: 1, run: null });
 });
 
 test("⌘Enter, ⌘N and a click arm a confirm row and select it, but never confirm", () => {
-  for (const s of [idle(1), armedAt1]) expect(step(s, { ...enter, meta: true }, row)).toEqual({ armed: restart.id, sel: 1, run: null });
+  for (const s of [idle(1), armedAt1]) expect(go(s, { ...enter, meta: true }, row)).toEqual({ armed: A, sel: 1, run: null });
   for (const type of ["nth", "click"] as const) {
-    expect(step(idle(3), { type, i: 1 }, row)).toEqual({ armed: restart.id, sel: 1, run: null });
-    expect(step(armedAt1, { type, i: 1 }, row)).toEqual({ armed: restart.id, sel: 1, run: null });
+    expect(go(idle(3), { type, i: 1 }, row)).toEqual({ armed: A, sel: 1, run: null });
+    expect(go(armedAt1, { type, i: 1 }, row)).toEqual({ armed: A, sel: 1, run: null });
     // elsewhere they run their row and leave the selection alone
-    expect(step(armedAt1, { type, i: 3 }, row)).toEqual({ armed: null, sel: 1, run: 3 });
+    expect(go(armedAt1, { type, i: 3 }, row)).toEqual({ armed: null, sel: 1, run: 3 });
   }
   // ⌘Enter on an app reveals it (the caller passes reveal), on Lock Screen it runs
-  expect(step(idle(3), { ...enter, meta: true }, row)).toEqual({ armed: null, sel: 3, run: 3 });
-  expect(step(idle(2), { ...enter, meta: true }, row)).toEqual({ armed: null, sel: 2, run: 2 });
+  expect(go(idle(3), { ...enter, meta: true }, row)).toEqual({ armed: null, sel: 3, run: 3 });
+  expect(go(idle(2), { ...enter, meta: true }, row)).toEqual({ armed: null, sel: 2, run: 2 });
 });
 
 test("any other key and a pointer down disarm in place; a new query and a hide also go back to the first row", () => {
-  for (const type of ["key", "pointer"] as const) expect(step(armedAt1, { type }, row)).toEqual({ armed: null, sel: 1, run: null });
-  for (const type of ["query", "hidden"] as const) expect(step(armedAt1, { type }, row)).toEqual({ armed: null, sel: 0, run: null });
+  for (const type of ["key", "pointer"] as const) expect(go(armedAt1, { type }, row)).toEqual({ armed: null, sel: 1, run: null });
+  for (const type of ["query", "hidden"] as const) expect(go(armedAt1, { type }, row)).toEqual({ armed: null, sel: 0, run: null });
 });
 
 test("armed only while the armed command is the selected row", () => {
-  expect(live(armedAt1, row)).toBe(restart.id);
-  expect(live({ armed: restart.id, sel: 2 }, row)).toBeNull();
+  expect(alive(armedAt1, row)).toBe(restart.id);
+  // the query changed without a "query" event (dictation, a context-menu paste): Restart is still row 1, but disarmed
+  expect(alive(armedAt1, row, "restart")).toBeNull();
+  expect(go(armedAt1, enter, row, "restart")).toEqual({ armed: { id: restart.id, q: "restart" }, sel: 1, run: null });
+  expect(alive({ armed: A, sel: 2 }, row)).toBeNull();
   // an app installed meanwhile takes row 1: Enter opens it, nothing restarts
   const moved: Row[] = ["42", app, restart, lock];
   const at = (i: number) => moved[i];
-  expect(live(armedAt1, at)).toBeNull();
-  expect(step(armedAt1, enter, at)).toEqual({ armed: null, sel: 1, run: 1 });
+  expect(alive(armedAt1, at)).toBeNull();
+  expect(go(armedAt1, enter, at)).toEqual({ armed: null, sel: 1, run: 1 });
   // the switch turned commands off: the armed id is gone
-  expect(live(armedAt1, (i) => [app, lock][i])).toBeNull();
-  expect(live({ armed: restart.id, sel: 0 }, row)).toBeNull(); // the answer row is never armed
+  expect(alive(armedAt1, (i) => [app, lock][i])).toBeNull();
+  expect(alive({ armed: A, sel: 0 }, row)).toBeNull(); // the answer row is never armed
 });
 
 test('"re" Enter, then "a": the key and the query change disarm, so the next Enter opens the new top row', () => {
-  let s: State = step(idle(1), enter, row);
-  expect(s.armed).toBe(restart.id);
-  const send = vi.fn((ev: Event) => (s = step(s, ev, row)));
+  let s: State = go(idle(1), enter, row);
+  expect(s.armed).toEqual(A);
+  const send = vi.fn((ev: Event) => (s = go(s, ev)));
   const actions = { hide() {}, move() {}, settings() {}, update() {}, send };
   paletteKey({ key: "a", code: "KeyA", shiftKey: false, isComposing: false, keyCode: 65, metaKey: false, repeat: false, preventDefault() {} }, actions);
   expect(send).toHaveBeenCalledExactlyOnceWith({ type: "key" });
   expect(s.armed).toBeNull();
   // a paste or dictation sends no key: the query change alone disarms
-  s = step(armedAt1, { type: "query" }, row);
+  s = go(armedAt1, { type: "query" }, row);
   const rea: Row[] = [app, restart];
-  expect(step(s, enter, (i) => rea[i])).toEqual({ armed: null, sel: 0, run: 0 });
+  expect(go(s, enter, (i) => rea[i])).toEqual({ armed: null, sel: 0, run: 0 });
 });

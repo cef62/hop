@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { calc } from "./calc";
-import { live, step, type Event } from "./confirm";
+import { live, step, type Event, type State } from "./confirm";
 import { paletteKey, type Actions } from "./keys";
 import { move, prepare, search, type Frecency, type Item } from "./rank";
 
@@ -210,7 +210,7 @@ export function Palette() {
   const [query, setQuery] = useState("");
   const [sel, setSel] = useState(0);
   const [error, setError] = useState("");
-  const [armed, setArmed] = useState<string | null>(null);
+  const [armed, setArmed] = useState<State["armed"]>(null);
   const [update, setUpdate] = useState<string | null>(null);
   const [cmd, setCmd] = useState(false);
   const input = useRef<HTMLInputElement>(null);
@@ -229,7 +229,7 @@ export function Palette() {
   // through a ref: the window listeners below are set up once and must see this render's state
   const send = useRef<(ev: Event) => void>(null!);
   send.current = (ev) => {
-    const o = step({ armed, sel: at }, ev, row);
+    const o = step({ armed, sel: at }, ev, row, query);
     setArmed(o.armed);
     setSel(o.sel);
     const c = o.run === null ? null : command(o.run, result, rows, ev.type === "enter" && ev.meta); // ⌘Enter reveals
@@ -324,7 +324,7 @@ export function Palette() {
       rows={rows}
       result={result}
       sel={at}
-      armed={live({ armed, sel: at }, row)}
+      armed={live({ armed, sel: at }, row, query)}
       error={error}
       cmd={cmd}
       update={update}
