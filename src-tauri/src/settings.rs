@@ -31,6 +31,8 @@ pub struct Settings {
     pub palette_style: String,
     /// the daily update check (update.rs); the toggle applies at the checker's next wake
     pub daily_update_check: bool,
+    /// Lock Screen, Sleep, Restart… in the index; off leaves them out, so `run` refuses them too
+    pub system_commands: bool,
     /// start at login was turned on by a first run (or must be left alone); never set from the window
     pub login_applied: bool,
     /// keys this version does not know, written back as they were
@@ -48,6 +50,7 @@ impl Default for Settings {
             theme: "system".into(),
             palette_style: "compact".into(),
             daily_update_check: true,
+            system_commands: true,
             login_applied: false,
             other: Default::default(),
         }
@@ -275,7 +278,7 @@ pub fn set_settings(app: AppHandle, patch: Value) -> Result<View, String> {
     if new.theme != old.theme {
         apply_theme(&app, &new.theme);
     }
-    if new.extra_folders != old.extra_folders || new.ignored_apps != old.ignored_apps {
+    if new.extra_folders != old.extra_folders || new.ignored_apps != old.ignored_apps || new.system_commands != old.system_commands {
         crate::apps::reload(&app, new.extra_folders != old.extra_folders);
     }
     Ok(get_settings(app))
@@ -452,6 +455,30 @@ mod tests {
         for f in ["/Volumes/Apps", "/opt/apps", &format!("{home}/Apps")] {
             assert!(!too_broad(f), "{f}");
         }
+    }
+
+    #[test]
+    fn settings_default_turns_commands_on() {
+        assert!(Settings::default().system_commands);
+        assert_eq!(serde_json::to_value(Settings::default()).unwrap()["systemCommands"], json!(true));
+    }
+
+    #[test]
+    fn old_settings_file_keeps_commands_on() {
+        let tmp = tempfile::tempdir().unwrap();
+        let p = tmp.path().join("settings.json");
+        // a 0.2.0 file: every key it knew, none of the new ones
+        std::fs::write(&p, r#"{"version":1,"hotkey":"Alt+Space","extraFolders":[],"ignoredApps":[],"theme":"dark","paletteStyle":"roomy","dailyUpdateCheck":false,"loginApplied":true}"#).unwrap();
+        let (s, _) = load(&p);
+        assert!(s.system_commands && s.other.is_empty());
+        assert_eq!((s.theme.as_str(), s.daily_update_check), ("dark", false));
+        // the switch is saved and read back; a wrong type falls back to on
+        let (off, bad) = merge(&s, &json!({"systemCommands": false}));
+        assert!(bad.is_empty() && !off.system_commands);
+        save(&p, &off).unwrap();
+        assert!(!load(&p).0.system_commands);
+        std::fs::write(&p, r#"{"version":1,"systemCommands":"no","loginApplied":true}"#).unwrap();
+        assert!(load(&p).0.system_commands);
     }
 
     #[test]

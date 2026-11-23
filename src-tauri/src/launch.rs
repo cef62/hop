@@ -1,5 +1,5 @@
 //! Opening what a palette row stands for with `open`: an app (a running one comes to the front, a stopped one starts)
-//! or a System Settings section.
+//! or a System Settings section. A system command goes to `commands::exec`.
 
 use std::path::Path;
 use std::process::Command;
@@ -37,16 +37,24 @@ fn open_args(item: Option<&Item>, reveal: bool, exists: impl Fn(&str) -> bool) -
             let url = pane_url(&item.id).ok_or("Not a System Settings section")?;
             Ok(Open { args: vec![url], record: true, fail: "Could not open System Settings" })
         }
-        Kind::Command => Err("hop cannot run this yet".into()),
+        // nothing to open: `run` sends commands to `commands::exec` before it gets here
+        Kind::Command => Err("Not something hop opens".into()),
     }
 }
 
-/// Opens row `id`, then hides the palette. Only items in the index run, since the id comes from the webview. An app
-/// removed since the last scan fails here and the palette stays open with the error; a failure `open` reports later
-/// (a damaged app) is logged, and macOS shows its own alert for most of those.
+/// Opens row `id`, then hides the palette. Only items in the index run, since the id comes from the webview (a command
+/// is in it only while "System commands" is on). An app removed since the last scan fails here and the palette stays
+/// open with the error; a failure `open` reports later (a damaged app) is logged, and macOS shows its own alert for most
+/// of those.
 #[tauri::command]
 pub fn run(app: AppHandle, id: String, reveal: bool) -> Result<(), String> {
-    let open = open_args(crate::apps::item(&app, &id).as_ref(), reveal, |p| Path::new(p).exists())?;
+    let item = crate::apps::item(&app, &id);
+    if item.as_ref().is_some_and(|i| i.kind == Kind::Command) {
+        crate::commands::exec(&app, &id)?;
+        crate::history::launched(&app, &id);
+        return Ok(());
+    }
+    let open = open_args(item.as_ref(), reveal, |p| Path::new(p).exists())?;
     let mut child = Command::new("/usr/bin/open").args(&open.args).spawn().map_err(|e| {
         eprintln!("hop: could not run open for {id} ({e})");
         open.fail.to_string()

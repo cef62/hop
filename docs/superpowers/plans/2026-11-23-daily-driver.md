@@ -219,3 +219,11 @@
 ## Log
 
 Retrospectives, newest last. Lessons carried in from v2 (`docs/v2-plan.md`): gate before every commit; mutation checks in every review; list boundary classes in briefs; check new shortcuts against macOS ones; fix small Majors inline; narrow late review rounds.
+
+### After PR 1 (#20, merged 2026-11-23)
+
+- Two review rounds (FAIL with 2 Majors, then PASS). Both Majors came from real system data the fixtures did not model: Apple's names use U+2011 and U+00A0 (Wi‑Fi, Wallet & Apple Pay), and Battery has no bundle name. Lesson: when a feature reads system data, the brief asks the implementer to dump the real values (all 52 names, raw bytes) and test against a sample of them, not only hand-written fixtures.
+- The implementer's deviations were right (nested plist key, all preferred languages, any-region fallback); recording them in the spec and plan in the same PR kept the docs honest.
+- Pure seams again made runtime decisions testable (`open_args`). Mutation counts: 21 → 45 killed after fixes.
+- Fixed inline after round 2: Norwegian `nb`/`nn` → `no`, second junk-name fixture. Deferred: Headphones (no name source).
+- Adjustments for PR 2: the brief lists the real-data check (what `loginwindow`/Finder Apple Events return, the actual `SACLockScreenImmediate` symbol presence on this Mac) as read-only probes the implementer may run; Opus implements (native code); the review attack list starts from the plan's Review Focus 2 and every disarm path.
