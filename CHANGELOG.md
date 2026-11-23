@@ -1,5 +1,11 @@
 # hop
 
+## 0.3.1
+
+### Patch Changes
+
+- 2b83132: Results you pick for a search now come first the next time you type it.
+
 ## 0.3.0
 
 ### Minor Changes
