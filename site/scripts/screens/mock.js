@@ -37,7 +37,7 @@
     async invoke(cmd) {
       switch (cmd) {
         case 'plugin:event|listen': return ++cbId;
-        case 'list_apps': return { generation: 1, apps: APPS };
+        case 'list_apps': return { generation: 1, items: APPS };
         case 'frecency': return frecency;
         case 'get_settings': case 'set_settings': return view;
         case 'whatsnew_info': return { update: { version: '0.1.2', current_version: '0.1.1', notes }, phase: { kind: 'idle' } };

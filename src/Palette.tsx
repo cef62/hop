@@ -6,7 +6,7 @@ import { paletteKey, type Actions } from "./keys";
 import { move, prepare, search, type App, type Frecency } from "./rank";
 
 export type Style = "compact" | "roomy";
-type Index = { generation: number; apps: App[] };
+type Index = { generation: number; items: App[] };
 type Look = { style: Style; perf: boolean; update: string | null };
 
 /** After the next paint: rAF runs before it, the timeout right after. */
@@ -138,7 +138,7 @@ export function PaletteView({ style, query, rows, result, sel, error, cmd, updat
 }
 
 export function Palette() {
-  const [index, setIndex] = useState<Index>({ generation: 0, apps: [] });
+  const [index, setIndex] = useState<Index>({ generation: 0, items: [] });
   const [frecency, setFrecency] = useState<Frecency>({});
   const [style, setStyle] = useState<Style>("compact");
   const [query, setQuery] = useState("");
@@ -152,7 +152,7 @@ export function Palette() {
   const perf = useRef(false);
   const keyAt = useRef<number | null>(null);
 
-  const items = useMemo(() => prepare(index.apps), [index]);
+  const items = useMemo(() => prepare(index.items), [index]);
   const rows = useMemo(() => search(query, items, frecency), [query, items, frecency]);
   const result = useMemo(() => calc(query), [query]);
   const count = total(rows, result);

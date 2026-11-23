@@ -10,7 +10,7 @@ use tauri::AppHandle;
 /// error; a failure `open` reports later (a damaged app) is logged, and macOS shows its own alert for most of those.
 #[tauri::command]
 pub fn launch(app: AppHandle, path: String, reveal: bool) -> Result<(), String> {
-    if !crate::apps::known(&app, &path) {
+    if !crate::apps::known_app(&app, &path) {
         return Err("Not an app hop knows".into());
     }
     if !Path::new(&path).exists() {
