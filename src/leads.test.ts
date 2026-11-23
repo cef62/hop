@@ -89,6 +89,8 @@ test("an open sum (ends in an operator or an open parenthesis) shows the latest 
   // not open: no leads at all (a bare number, a word, a closed or broken query)
   for (const q of ["safari", "1", "12", "1+)", "2**", "", "   ", ")", "(1)", "e+", "-)"]) expect(leads(q, calc(q), hist(8), true), q).toEqual([]);
   expect(leads("1+", null, hist(8), false)).toEqual([]);
+  // more closers than openers: no row, and no throw
+  for (const q of ["))+(", "1)+", ")+", "(1))*"]) expect(leads(q, calc(q), hist(8), true), q).toEqual([]);
 });
 
 test("⌘Enter on a history row: `1+` becomes `1+87` (88), `=` and an empty query become the result", () => {
