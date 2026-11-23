@@ -3,7 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { calc } from "./calc";
 import { live, step, type Event, type State } from "./confirm";
-import { insertable, leads, rowAt, total, type Entry, type Lead, type Row } from "./leads";
+import { insertable, leads, open, rowAt, total, type Entry, type Lead, type Row } from "./leads";
 import { paletteKey, type Actions } from "./keys";
 import { move, pickKey, prepare, search, strong, type Frecency, type Item, type Picks } from "./rank";
 
@@ -242,7 +242,7 @@ export function Palette() {
 
   const items = useMemo(() => prepare(index.items), [index]);
   const rows = useMemo(() => search(query, items, frecency, picks), [query, items, frecency, picks]);
-  const lead = useMemo(() => leads(query, calculator ? calc(query) : null, history, calculator, strong(query, items)), [query, history, calculator, items]);
+  const lead = useMemo(() => leads(query, calculator ? calc(query) : null, history, calculator, open(query) && strong(query, items)), [query, history, calculator, items]);
   const count = total(rows, lead);
   const at = Math.min(sel, Math.max(count - 1, 0)); // the list can shrink under the selection (app removed)
 
