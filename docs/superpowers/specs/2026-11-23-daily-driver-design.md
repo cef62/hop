@@ -103,6 +103,12 @@ The calculator history is frontend state plus a small Rust store, independent of
 - Enter / ⌘N on a history row sets the query to its expression, keeps the palette open, and puts the caret at the end. ⌘Enter appends its result to the query.
 - `calc` accepts exponent literals (`1.2e+21`), so any shown result can be fed back in. A bare literal still gives no row (no operator).
 - With "Calculator" off: no live row, no history rows, `=` is a plain search.
+- Built: one reducer decides everything (`step` in `src/confirm.ts`, rows from `src/leads.ts`). Enter, ⌘N and a click on a history row replace the query with its expression; ⌘Enter appends its result; each puts the selection on the first row, disarms any armed command and keeps the palette open with the focus and caret in the input. A held Enter's repeats do nothing on a result or history row (the first press may have changed the query, and the repeat would copy its live row). ⌘Enter on the live result copies it, as Enter does.
+- Built: `=` is matched after trimming (` = ` lists the history). A history row whose expression equals the query (trimmed) is not shown under the live row, and the next entry takes its place, so five show.
+- Built, the ⌘Enter rule: the result is appended as it is, to the query as typed. After an operator (`1+`, `12*`) it completes the sum; after a digit (`12`) the digits run together (`125`) and that is all: no guessing what the user meant. Exponent results parse when typed back (`1+1.84467440737e+19`).
+- Built: `calc` accepts `1.2e+21`, `1E3`, `.5e2`; not `5.e2` (`5.` is no number, as before), `1e`, `1e+`, `e+5`. `1e400` is Infinity and gives no row; `1e-400*1` is `0`. A result fed back through `calc(result + "*1")` gives itself, with one exception: a non-integer from 1e11 up rounds to an integer shown in exponent form (`1.23456789013e+11`), and typed back it is a safe integer shown in full (`123456789013`): same number, other digits.
+- Built: the copy is recorded by `copy_text(text, expr)` after a successful write only; a failed copy records nothing, and a failed file write is logged, not returned. An `expr` that is empty or over 200 characters is not recorded (the copy still works). The palette reads the history on `palette-shown`; no refetch after a copy, because a copy hides the palette.
+- Built: the "Calculator" switch rides `palette-shown` / `palette-hidden` in `Look.calculator`; it needs no index reload.
 
 ### Settings
 

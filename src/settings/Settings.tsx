@@ -11,6 +11,7 @@ type Settings = {
   paletteStyle: "compact" | "roomy";
   dailyUpdateCheck: boolean;
   systemCommands: boolean;
+  calculator: boolean;
 };
 export type View = { settings: Settings; hotkeyError: string | null; login: boolean; loginRefusal: string | null; version: string; update: string | null };
 type UpdateInfo = { version: string };
@@ -211,6 +212,10 @@ export function SettingsPage({ initial = null }: { initial?: View | null }) {
           <label className="row">
             System commands
             <input type="checkbox" {...toggle} checked={s.systemCommands} onChange={(e) => save(() => ({ systemCommands: e.target.checked }))} />
+          </label>
+          <label className="row">
+            Calculator
+            <input type="checkbox" {...toggle} checked={s.calculator} onChange={(e) => save(() => ({ calculator: e.target.checked }))} />
           </label>
         </div>
       </section>
