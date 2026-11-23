@@ -1,6 +1,7 @@
 import { expect, test, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { command, PaletteView, rowAt, total, type Style } from "./Palette";
+import { live } from "./confirm";
 import { paletteKey } from "./keys";
 import { move, prepare, search, type Item } from "./rank";
 
@@ -149,10 +150,9 @@ test("an armed row reads its confirm copy, to the eye and to VoiceOver", () => {
   expect(idle).toContain('<span class="keys" aria-hidden="true">↵ run · ⌘1–9 open · esc close</span>');
   // an armed id that left the list (the switch turned commands off) shows nothing
   expect(view("cmd:gone")).toEqual(idle);
-  // armed but no longer selected: the row keeps its copy, the footer follows the selection
-  const away = view("cmd:restart", 2);
-  expect(away).toContain('aria-label="Press Enter again to restart"');
-  expect(away).toContain("⌘↵ reveal in Finder");
+  // the palette passes only a live arming (`live`: the armed row is the selected one), so the view never shows a prompt
+  // on one row while Enter acts on another
+  expect(view(live({ armed: "cmd:restart", sel: 2 }, (i) => commands[i]), 2)).toEqual(view(null, 2));
 });
 
 test("command rows draw a glyph, request no icon, and run by id", () => {

@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { calc } from "./calc";
-import { press, reset } from "./confirm";
+import { live, step, type Event } from "./confirm";
 import { paletteKey, type Actions } from "./keys";
 import { move, prepare, search, type Frecency, type Item } from "./rank";
 
@@ -225,34 +225,25 @@ export function Palette() {
   const count = total(rows, result);
   const at = Math.min(sel, Math.max(count - 1, 0)); // the list can shrink under the selection (app removed)
 
-  const fresh = (query: string) => {
-    const r = reset(query);
-    setQuery(r.query);
-    setSel(r.sel);
-    setError(r.error);
-    setArmed(r.armed);
-  };
-  /** Row `i` pressed while `before` is armed (null for ⌘N and clicks: they can arm a command, never confirm one). */
-  const open = (i: number, reveal: boolean, plain: boolean, before: string | null) => {
-    const r = rowAt(i, result, rows);
-    if (typeof r === "object") {
-      const p = press(before, r, plain);
-      setArmed(p.armed);
-      // the armed row becomes the selected one, so the next Enter confirms it
-      if (!p.run) return setSel(i);
-    }
-    const c = command(i, result, rows, reveal);
+  const row = (i: number) => rowAt(i, result, rows);
+  // through a ref: the window listeners below are set up once and must see this render's state
+  const send = useRef<(ev: Event, reveal?: boolean) => void>(null!);
+  send.current = (ev, reveal = false) => {
+    const o = step({ armed, sel: at }, ev, row);
+    setArmed(o.armed);
+    setSel(o.sel);
+    const c = o.run === null ? null : command(o.run, result, rows, reveal);
     if (c) invoke(...c).catch((e) => setError(String(e)));
   };
   const actions = useRef<Actions>(null!);
   actions.current = {
     hide: () => invoke("hide_palette"),
     move: (d) => setSel(move(at, d, count)),
-    open: (reveal, repeat) => open(at, reveal, !reveal && !repeat, armed),
-    openAt: (i) => open(i, false, true, null),
+    open: (meta, repeat) => send.current({ type: "enter", meta, repeat }, meta),
+    openAt: (i) => send.current({ type: "nth", i }),
     settings: () => invoke("open_settings"),
     update: () => update && invoke("open_whatsnew"),
-    disarm: () => setArmed(null),
+    disarm: () => send.current({ type: "key" }),
   };
 
   useEffect(() => {
@@ -271,7 +262,9 @@ export function Palette() {
       }),
       listen<Look>("palette-hidden", (e) => {
         setStyle(e.payload.style); // a changed setting applies while hidden, before the next show paints
-        fresh("");
+        setQuery("");
+        setError("");
+        send.current({ type: "hidden" });
         setCmd(false);
       }),
     ];
@@ -282,7 +275,7 @@ export function Palette() {
     const onBlur = () => setCmd(false); // a ⌘ keyup that lands in another window never reaches us
     // the window is larger than the card and its transparent margin still takes clicks: treat them as a click outside
     const onDown = (e: PointerEvent) => {
-      setArmed(null); // a click, even on the armed row, only arms again: it never confirms
+      send.current({ type: "pointer" }); // a click, even on the armed row, only arms again: it never confirms
       // composedPath is fixed at dispatch, so a node React removes during the event still counts as inside
       if (!card.current || !e.composedPath().includes(card.current)) invoke("hide_palette");
     };
@@ -333,16 +326,18 @@ export function Palette() {
       rows={rows}
       result={result}
       sel={at}
-      armed={armed}
+      armed={live({ armed, sel: at }, row)}
       error={error}
       cmd={cmd}
       update={update}
       onUpdate={actions.current.update}
       onQuery={(q, t) => {
         if (perf.current) keyAt.current = t;
-        fresh(q);
+        setQuery(q);
+        setError("");
+        send.current({ type: "query" });
       }}
-      onOpen={(i) => open(i, false, true, null)}
+      onOpen={(i) => send.current({ type: "click", i })}
       input={input}
       card={card}
       list={list}
