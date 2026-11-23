@@ -14,7 +14,7 @@ fn check(text: &str) -> Result<(), String> {
 }
 
 /// Puts `text` on the general pasteboard as plain text, then hides the palette so the user can paste in their app. Like
-/// `launch`, a failure keeps the palette open with the error. Records no launch.
+/// `run`, a failure keeps the palette open with the error. Records no launch.
 #[tauri::command]
 pub fn copy_text(app: AppHandle, text: String) -> Result<(), String> {
     check(&text)?;

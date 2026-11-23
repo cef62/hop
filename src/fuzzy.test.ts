@@ -20,3 +20,15 @@ test("fold drops diacritics and case", () => {
   expect(tier(fold("cafe"), fold("Café Noir"))).toBe(5);
   expect(tier(fold("impostazioni"), fold("Impostazioni di Sistema"))).toBe(5);
 });
+
+test("fold turns typographic hyphens and spaces into ASCII: System Settings names use them", () => {
+  // the real names: Wi‑Fi has U+2011 (non-breaking hyphen), Wallet & Apple Pay a U+00A0 before "Pay"
+  const wifi = fold("Wi‑Fi");
+  const wallet = fold("Wallet & Apple Pay");
+  expect(wifi).toBe("wi-fi");
+  expect(wallet).toBe("wallet & apple pay");
+  expect(tier(fold("wi-fi"), wifi)).toBe(6);
+  expect(tier(fold("apple pay"), wallet)).toBe(4);
+  expect(fold("a‐b c d　e")).toBe("a-b c d e");
+  expect(fold("Résumé")).toBe("resume");
+});

@@ -85,7 +85,7 @@ pub fn handle(ctx: UriSchemeContext<'_, tauri::Wry>, req: Request<Vec<u8>>, resp
     tauri::async_runtime::spawn_blocking(move || {
         let path = percent_decode(req.uri().path().trim_start_matches('/'));
         let png = path
-            .filter(|p| label == "main" && crate::apps::known(&app, p))
+            .filter(|p| label == "main" && crate::apps::known_app(&app, p))
             .and_then(|p| icon_png(&app.path().app_cache_dir().ok()?.join("icons"), &p));
         let res = match png {
             Some(png) => Response::builder().header("Content-Type", "image/png").header("Cache-Control", "no-cache").body(png),

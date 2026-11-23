@@ -1,4 +1,4 @@
-//! Frecency: a launch count per app path that halves every week, in `history.json` (app data dir). Written after a
+//! Frecency: a launch count per item id (an app's path) that halves every week, in `history.json` (app data dir). Written after a
 //! launch, at most once per `DEBOUNCE`, and on exit. A missing or corrupt file starts an empty history.
 
 use std::collections::HashMap;
@@ -81,11 +81,11 @@ fn flush(h: &mut History) {
     h.dirty = false;
 }
 
-/// A launch of `path`: counted now, saved within `DEBOUNCE`.
-pub fn launched(app: &AppHandle, path: &str) {
+/// A launch of item `id`: counted now, saved within `DEBOUNCE`.
+pub fn launched(app: &AppHandle, id: &str) {
     let state = app.state::<Mutex<History>>();
     let mut h = state.lock().unwrap();
-    record(&mut h.entries, path, now());
+    record(&mut h.entries, id, now());
     if !std::mem::replace(&mut h.dirty, true) {
         let app = app.clone();
         std::thread::spawn(move || {
@@ -102,7 +102,7 @@ pub fn flush_now(app: &AppHandle) {
     }
 }
 
-/// Current frecency per app path, for ranking and the empty-query list.
+/// Current frecency per item id, for ranking and the empty-query list.
 #[tauri::command]
 pub fn frecency(app: AppHandle) -> HashMap<String, f64> {
     scores(&app.state::<Mutex<History>>().lock().unwrap().entries, now())

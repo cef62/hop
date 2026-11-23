@@ -1,7 +1,13 @@
 // Ported from velo's src/fuzzy.ts, plus a word-initials tier ("vsc" → "Visual Studio Code").
 
-/** Lowercase without diacritics: "Résumé" → "resume". */
-export const fold = (s: string): string => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+/** Lowercase without diacritics, with plain hyphens and spaces: "Résumé" → "resume", "Wi‑Fi" (U+2011) → "wi-fi".
+ * Apple's names use typographic hyphens and no-break spaces that nobody types. */
+export const fold = (s: string): string =>
+  s
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u2010\u2011]/g, "-") // NFKD has made U+2011 a U+2010 and every Unicode space a " "
+    .toLowerCase();
 
 const WORD = /[\p{L}\p{N}]/u;
 

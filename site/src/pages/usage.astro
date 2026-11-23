@@ -7,6 +7,7 @@ const toc = [
   ['install', 'Install'],
   ['open', 'Open hop'],
   ['search', 'Search and launch'],
+  ['system-settings', 'System Settings'],
   ['calculator', 'Calculator'],
   ['shortcuts', 'Keyboard shortcuts'],
   ['settings', 'Settings'],
@@ -14,9 +15,9 @@ const toc = [
 ];
 const keys = [
   ['⌥Space', 'Show the palette over any app; press again to hide. Default hotkey.'],
-  ['↑ ↓', 'Select an app.'],
-  ['Enter', 'Open the selected app.'],
-  ['⌘Enter', 'Reveal the selected app in Finder.'],
+  ['↑ ↓', 'Select a result.'],
+  ['Enter', 'Open the selected app or System Settings section.'],
+  ['⌘Enter', 'Reveal the selected app in Finder. On a System Settings section, open it.'],
   ['⌘1 … ⌘9', 'Open the Nth result directly. Hold ⌘ to see the numbers.'],
   ['Enter on a result', 'Copy the calculator’s answer and hide the palette.'],
   ['Esc', 'Hide the palette and return to your app. Also closes Settings.'],
@@ -85,6 +86,16 @@ const keys = [
           <li>New and removed apps are picked up by themselves.</li>
         </ul>
         <p>Press <kbd>Esc</kbd> or click away to hide the palette. Focus returns to the app you were in.</p>
+      </section>
+
+      <section id="system-settings">
+        <h2>System Settings</h2>
+        <ul>
+          <li>Type a section's name to find it, such as <code>privacy</code> for Privacy &amp; Security or <code>storage</code> for General › Storage.</li>
+          <li>Press <kbd>Enter</kbd> to open System Settings on that section.</li>
+          <li>Sections match by their name in each of your Mac's languages and in English.</li>
+          <li>Section rows show the System Settings icon and a "System Settings" tag. They rank with the apps, and sections you open often rank higher.</li>
+        </ul>
       </section>
 
       <section id="calculator">

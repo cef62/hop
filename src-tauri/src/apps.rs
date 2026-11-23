@@ -1,5 +1,6 @@
-//! App discovery: walks the roots, names each app as the Finder does, keeps the list in memory and rescans when a
-//! root changes. The frontend gets the list once (`list_apps`) and again on every `apps-changed` event.
+//! The index of what the palette finds: apps, found by walking the roots and named as the Finder does, plus System
+//! Settings sections (`panes`). Kept in memory and rescanned when a root changes. The frontend gets the list once
+//! (`list_apps`) and again on every `apps-changed` event.
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -10,14 +11,31 @@ use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 
+#[derive(Serialize, Clone, Copy, Debug, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum Kind {
+    App,
+    Pane,
+    Command,
+}
+
 #[derive(Serialize, Clone, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct App {
+pub struct Item {
+    pub kind: Kind,
+    /// What `run` and frecency key on: an app's path (so `history.json` from before items carries over), `pane:<bundle
+    /// id>` for a section.
+    pub id: String,
     /// What the Finder shows (localized), without `.app`.
     pub name: String,
     /// The file name without `.app`, when it differs from `name`: an English name on an Italian system.
     pub alt_names: Vec<String>,
-    pub path: String,
+    /// The bundle whose icon the row shows.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    /// The prompt a second Enter must confirm.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub confirm: Option<String>,
 }
 
 /// The index and its generation. The generation lets the frontend drop a `list_apps` reply that arrives after a newer
@@ -25,7 +43,7 @@ pub struct App {
 #[derive(Serialize, Clone, Default)]
 pub struct Index {
     pub generation: u64,
-    pub apps: Vec<App>,
+    pub items: Vec<Item>,
 }
 
 /// Levels below a root that can hold an app: `/Applications/X.app` and `/Applications/Vendor/X.app`.
@@ -46,13 +64,13 @@ pub fn roots(extra: &[String]) -> Vec<PathBuf> {
 
 /// `apps` without the ones on the ignore list, matched by the path as indexed or as resolved (the picker can return
 /// either side of a symlink).
-pub fn without_ignored(apps: Vec<App>, ignored: &[String]) -> Vec<App> {
+pub fn without_ignored(apps: Vec<Item>, ignored: &[String]) -> Vec<Item> {
     if ignored.is_empty() {
         return apps;
     }
     let real = |p: &str| std::fs::canonicalize(p).ok().map(|c| c.to_string_lossy().into_owned());
     let ignored: HashSet<String> = ignored.iter().flat_map(|p| [Some(p.clone()), real(p)]).flatten().collect();
-    apps.into_iter().filter(|a| !ignored.contains(&a.path) && !real(&a.path).is_some_and(|r| ignored.contains(&r))).collect()
+    apps.into_iter().filter(|a| !ignored.contains(&a.id) && !real(&a.id).is_some_and(|r| ignored.contains(&r))).collect()
 }
 
 fn is_app(p: &Path) -> bool {
@@ -95,13 +113,14 @@ fn walk(dir: &Path, depth: usize, seen: &mut HashSet<PathBuf>, out: &mut Vec<Pat
 
 /// `display` is the Finder's name for the bundle (`NSFileManager displayNameAtPath:`), which may or may not end in
 /// `.app`; the file name becomes an alternative search key when it differs.
-pub fn app_entry(path: &Path, display: &str) -> App {
+pub fn app_entry(path: &Path, display: &str) -> Item {
     let strip = |s: &str| s.strip_suffix(".app").unwrap_or(s).to_string();
     let name = strip(display);
     let file = path.file_name().map(|n| strip(&n.to_string_lossy())).unwrap_or_default();
     let name = if name.is_empty() { file.clone() } else { name };
     let alt_names = if file != name && !file.is_empty() { vec![file] } else { vec![] };
-    App { name, alt_names, path: path.to_string_lossy().into_owned() }
+    let path = path.to_string_lossy().into_owned();
+    Item { kind: Kind::App, id: path.clone(), name, alt_names, path: Some(path), confirm: None }
 }
 
 #[cfg(target_os = "macos")]
@@ -115,7 +134,7 @@ pub fn display_name(path: &Path) -> String {
     path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()
 }
 
-pub fn index(roots: &[PathBuf]) -> Vec<App> {
+pub fn index(roots: &[PathBuf]) -> Vec<Item> {
     scan(roots).iter().map(|p| app_entry(p, &display_name(p))).collect()
 }
 
@@ -126,6 +145,14 @@ fn relevant(path: &Path, roots: &[PathBuf]) -> bool {
     roots.iter().any(|r| path.strip_prefix(r).is_ok_and(|rest| rest.components().count() <= DEPTH && !in_bundle(rest)))
 }
 
+/// The index: the apps not ignored, then the sections. The ignore list is for apps: ignoring System Settings leaves its
+/// sections in (their rows just lose the icon).
+fn assemble(apps: Vec<Item>, ignored: &[String], panes: Vec<Item>) -> Vec<Item> {
+    let mut items = without_ignored(apps, ignored);
+    items.extend(panes);
+    items
+}
+
 /// One scan at a time: two quick Settings changes must not publish their scans out of order.
 static SCANNING: Mutex<()> = Mutex::new(());
 
@@ -134,11 +161,11 @@ static SCANNING: Mutex<()> = Mutex::new(());
 fn refresh(app: &AppHandle) {
     let _one = SCANNING.lock().unwrap();
     let s = crate::settings::current(app);
-    let apps = without_ignored(index(&roots(&s.extra_folders)), &s.ignored_apps);
+    let items = assemble(index(&roots(&s.extra_folders)), &s.ignored_apps, crate::panes::index());
     let snapshot = {
         let state = app.state::<Mutex<Index>>();
         let mut idx = state.lock().unwrap();
-        *idx = Index { generation: idx.generation + 1, apps };
+        *idx = Index { generation: idx.generation + 1, items };
         idx.clone()
     };
     app.emit_to("main", "apps-changed", snapshot).ok();
@@ -205,7 +232,7 @@ pub fn setup(app: &AppHandle) {
     std::thread::spawn(move || {
         let t = std::time::Instant::now();
         refresh(&app);
-        eprintln!("hop: indexed {} apps in {} ms", app.state::<Mutex<Index>>().lock().unwrap().apps.len(), t.elapsed().as_millis());
+        eprintln!("hop: indexed {} items in {} ms", app.state::<Mutex<Index>>().lock().unwrap().items.len(), t.elapsed().as_millis());
         rewatch(&app);
     });
 }
@@ -221,9 +248,24 @@ pub fn reload(app: &AppHandle, folders: bool) {
     });
 }
 
-/// Whether `path` is an app in the index: commands and the icon scheme take paths from the webview and act only on these.
-pub fn known(app: &AppHandle, path: &str) -> bool {
-    app.state::<Mutex<Index>>().lock().unwrap().apps.iter().any(|a| a.path == path)
+/// Whether `path` is an app in the index: the icon scheme takes paths from the webview and serves only these.
+pub fn known_app(app: &AppHandle, path: &str) -> bool {
+    has_app(&app.state::<Mutex<Index>>().lock().unwrap().items, path)
+}
+
+/// Apps only: a section carries the System Settings path for its icon, which must not make an ignored app's icon
+/// servable.
+fn has_app(items: &[Item], path: &str) -> bool {
+    items.iter().any(|i| i.kind == Kind::App && i.path.as_deref() == Some(path))
+}
+
+/// The index entry for `id`: `run` acts only on these, since the id comes from the webview.
+pub fn item(app: &AppHandle, id: &str) -> Option<Item> {
+    find(&app.state::<Mutex<Index>>().lock().unwrap().items, id).cloned()
+}
+
+fn find<'a>(items: &'a [Item], id: &str) -> Option<&'a Item> {
+    items.iter().find(|i| i.id == id)
 }
 
 #[tauri::command]
@@ -272,10 +314,13 @@ mod tests {
     #[test]
     fn localized_display_name_is_the_name_and_file_name_the_alt_name() {
         let p = Path::new("/System/Applications/System Settings.app");
-        assert_eq!(app_entry(p, "Impostazioni di Sistema.app"), App {
+        assert_eq!(app_entry(p, "Impostazioni di Sistema.app"), Item {
+            kind: Kind::App,
+            id: p.to_string_lossy().into(),
             name: "Impostazioni di Sistema".into(),
             alt_names: vec!["System Settings".into()],
-            path: p.to_string_lossy().into(),
+            path: Some(p.to_string_lossy().into()),
+            confirm: None,
         });
         // the Finder hides the extension: same name, no alt
         assert_eq!(app_entry(p, "System Settings").alt_names, Vec::<String>::new());
@@ -338,11 +383,39 @@ mod tests {
         std::os::unix::fs::symlink(&real, tmp.path().join("Tool.app")).unwrap();
         let entry = |p: &Path| app_entry(p, "");
         let apps = vec![entry(&tmp.path().join("Tool.app")), entry(Path::new("/Applications/Safari.app")), entry(Path::new("/Applications/Mail.app"))];
-        let paths = |v: Vec<App>| v.into_iter().map(|a| a.name).collect::<Vec<_>>();
+        let paths = |v: Vec<Item>| v.into_iter().map(|a| a.name).collect::<Vec<_>>();
         assert_eq!(paths(without_ignored(apps.clone(), &[])), ["Tool", "Safari", "Mail"]);
         assert_eq!(paths(without_ignored(apps.clone(), &["/Applications/Mail.app".into()])), ["Tool", "Safari"]);
         // ignored through the link's target, indexed through the link
         assert_eq!(paths(without_ignored(apps, &[real.to_string_lossy().into()])), ["Safari", "Mail"]);
+    }
+
+    #[test]
+    fn app_items_use_the_path_as_id() {
+        let p = Path::new("/Applications/X.app");
+        let e = app_entry(p, "X");
+        assert_eq!((e.kind, e.id.as_str(), e.path.as_deref()), (Kind::App, "/Applications/X.app", Some("/Applications/X.app")));
+    }
+
+    #[test]
+    fn known_app_ignores_other_kinds() {
+        let settings = "/System/Applications/System Settings.app";
+        let pane = Item { kind: Kind::Pane, id: "pane:a".into(), name: "A".into(), alt_names: vec![], path: Some(settings.into()), confirm: None };
+        assert!(!has_app(std::slice::from_ref(&pane), settings), "a section's icon path is not an app");
+        assert!(has_app(&[pane, app_entry(Path::new(settings), "")], settings));
+    }
+
+    #[test]
+    fn ignoring_system_settings_keeps_its_sections_runnable() {
+        let settings = "/System/Applications/System Settings.app";
+        let pane = Item { kind: Kind::Pane, id: "pane:a".into(), name: "A".into(), alt_names: vec![], path: Some(settings.into()), confirm: None };
+        let apps = vec![app_entry(Path::new(settings), ""), app_entry(Path::new("/Applications/Mail.app"), "")];
+        let items = assemble(apps, &[settings.into()], vec![pane.clone()]);
+        assert_eq!(find(&items, "pane:a"), Some(&pane));
+        assert_eq!(find(&items, settings), None);
+        assert!(!has_app(&items, settings), "the ignored app's icon is served");
+        assert!(find(&items, "/Applications/Mail.app").is_some());
+        assert!(find(&items, "pane:b").is_none() && find(&items, "").is_none() && find(&items, "pane:").is_none());
     }
 
     #[test]
