@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { LIMIT, PICK_KEY, boost, move, pickKey, prepare, search, type Item, type Picks } from "./rank";
+import { LIMIT, PICK_KEY, PICK_FORGET, boost, move, pickKey, prepare, search, type Item, type Picks } from "./rank";
 
 const app = (name: string, altNames: string[] = []): Item => {
   const path = `/Applications/${altNames[0] ?? name}.app`;
@@ -137,8 +137,46 @@ describe("learned picks", () => {
     expect(go("me", picks, fr)).toEqual(["Google Meet", ...go("me", {}, fr).filter((n) => n !== "Google Meet")]);
   });
 
-  test("unknown ids and zero scores are inert", () => {
-    expect(go("me", { me: { "/Gone.app": 3, [apps0("Mail")]: 0 } })).toEqual(go("me", {}));
+  test("unknown ids, zero scores and scores under the forget floor are inert", () => {
+    expect(go("me", { me: { "/Gone.app": 3, [apps0("Memo")]: 0 } })).toEqual(go("me", {})); // Memo matches "me"
+    expect(go("me", { me: { [apps0("Google Meet")]: PICK_FORGET / 2 } })).toEqual(go("me", {})); // an 8-week-old pick
+    expect(go("me", { me: { [apps0("Google Meet")]: PICK_FORGET } })[0]).toBe("Google Meet");
+  });
+
+  test("any pick above the floor beats every unpicked match, however tiny or weak the tier", () => {
+    const l = prepare([app("Meetings"), app("Zoom Meeting")]);
+    const r = (p: Picks) => search("meet", l, {}, p).map((a) => a.name);
+    expect(r({})).toEqual(["Meetings", "Zoom Meeting"]);
+    expect(r({ meet: { [apps0("Zoom Meeting")]: 0.02 } })).toEqual(["Zoom Meeting", "Meetings"]);
+  });
+
+  test("picked items go by pick score, not by tier: 30 vs 45 and 10 vs 11", () => {
+    const m = apps0("Messages");
+    const g = apps0("Google Meet"); // Messages is the prefix match, Meet only a word start
+    for (const [a, b] of [[30, 45], [10, 11], [50, 100]]) {
+      expect(go("me", { me: { [m]: a, [g]: b } }).slice(0, 2)).toEqual(["Google Meet", "Messages"]);
+      expect(go("me", { me: { [m]: b, [g]: a } }).slice(0, 2)).toEqual(["Messages", "Google Meet"]);
+    }
+    // equal pick scores fall back to today's order
+    expect(go("me", { me: { [m]: 2, [g]: 2 } }).slice(0, 2)).toEqual(["Messages", "Google Meet"]);
+  });
+
+  test("a pick never applies through a scattered letter match (tier 1)", () => {
+    const l = prepare([app("Safari"), app("Spotify"), app("Slack"), { kind: "command", id: "cmd:sleep", name: "Sleep", altNames: [] }, app("System Settings"), app("Signal")]);
+    const ids = (q: string, p: Picks) => search(q, l, {}, p).map((a) => a.name);
+    const sleep: Picks = { s: { "cmd:sleep": 1 } };
+    expect(ids("sp", sleep)).toEqual(ids("sp", {})); // s…p are scattered in "sleep"
+    expect(ids("sp", sleep)[0]).toBe("Spotify");
+    expect(ids("s", sleep)[0]).toBe("Sleep"); // where it was picked it stays first
+    const settings: Picks = { s: { [apps0("System Settings")]: 5 } };
+    expect(ids("sig", settings)[0]).toBe("Signal");
+  });
+
+  test("the cap counts code points: an emoji at the boundary is never cut in half", () => {
+    const k = pickKey("a".repeat(PICK_KEY - 1) + "😀x");
+    expect(k).toBe("a".repeat(PICK_KEY - 1) + "😀");
+    expect(k.isWellFormed()).toBe(true);
+    expect(Array.from(pickKey("😀".repeat(40)))).toHaveLength(PICK_KEY);
   });
 
   test("the key is the folded, trimmed query capped at PICK_KEY chars", () => {

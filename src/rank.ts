@@ -26,7 +26,10 @@ export type Picks = Record<string, Record<string, number>>;
 export const PICK_KEY = 30;
 
 /** The key a pick is stored under: the folded, trimmed query, cut at `PICK_KEY` characters (a prefix, so it still applies). */
-export const pickKey = (query: string): string => fold(query.trim()).slice(0, PICK_KEY);
+export const pickKey = (query: string): string => Array.from(fold(query.trim())).slice(0, PICK_KEY).join(""); // code points: never half an emoji
+
+/** A pick score under this counts as none: `picks.rs` forgets it on load, and a file read before that could hold it. */
+export const PICK_FORGET = 0.01;
 
 /** Rows the empty query shows: the most used apps. */
 export const RECENT = 6;
@@ -38,9 +41,11 @@ export const boost = (f = 0): number => (0.9 * f) / (f + 1);
 
 /**
  * The palette's rows for `query`. Empty: up to `RECENT` apps and sections with any frecency (never commands), most
- * used first (nothing without history). Otherwise: items with a learned pick for `q` first (the summed scores under every
- * key that is a prefix of `q`, so "me" → Meet also holds for "meet" but not for "m"), only those that still match;
- * then best match tier over name and alt names, plus the frecency boost; then shorter name, then A–Z.
+ * used first (nothing without history). Otherwise: items with a learned pick for `q` first, most picked first (the
+ * summed scores under every key that is a prefix of `q`, so "me" → Meet also holds for "meet" but not for "m"). A
+ * pick only counts for an item that matches `q` as a contiguous run (tier 2 and up): through scattered letters, a
+ * pick for "s" would put Sleep first for "sp". Then best match tier over name and alt names, plus the frecency boost;
+ * then shorter name, then A–Z.
  */
 export function search(query: string, items: Prepared[], frecency: Frecency, picks: Picks = {}, limit = LIMIT): Item[] {
   const q = fold(query.trim());
@@ -54,15 +59,15 @@ export function search(query: string, items: Prepared[], frecency: Frecency, pic
   }
   const picked: Record<string, number> = {};
   for (let n = 1; n <= q.length; n++) for (const [id, v] of Object.entries(picks[q.slice(0, n)] ?? {})) picked[id] = (picked[id] ?? 0) + v;
-  const hits: { item: Item; score: number }[] = [];
+  const hits: { item: Item; score: number; pick: number }[] = [];
   for (const { item, keys } of items) {
     let t = 0;
     for (const k of keys) t = Math.max(t, tier(q, k.f, k.ini));
-    // 10 + 100*boost is above any tier plus boost (under 7); a pick-score gap outweighs a tier gap, near-equal scores fall back to tier
-    if (t) hits.push({ item, score: t + boost(fr(item)) + (picked[item.id] > 0 ? 10 + 100 * boost(picked[item.id]) : 0) });
+    const p = t >= 2 ? (picked[item.id] ?? 0) : 0;
+    if (t) hits.push({ item, score: t + boost(fr(item)), pick: p >= PICK_FORGET ? p : 0 });
   }
   return hits
-    .sort((a, b) => b.score - a.score || a.item.name.length - b.item.name.length || a.item.name.localeCompare(b.item.name))
+    .sort((a, b) => b.pick - a.pick || b.score - a.score || a.item.name.length - b.item.name.length || a.item.name.localeCompare(b.item.name))
     .slice(0, limit)
     .map((h) => h.item);
 }

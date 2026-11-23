@@ -30,8 +30,8 @@ On another laptop the owner types "me", and hop lists Messages first and the Chr
 
 ## Deviations (implementation)
 
-- The frontend sends the folded, trimmed, 30-character-capped query in `run` (`pickKey` in `src/rank.ts`, an optional `query` argument); Rust only trims and caps by characters again and never folds.
-- Ranking adds `10 + 100 * boost(pickScore)` to the usual score instead of a separate sort: picked items come first, ordered by pick score (a clear pick-score gap beats a tier gap; near-equal scores fall back to tier).
+- The frontend sends the folded, 30-code-point-capped query in `run` (`pickKey` in `src/rank.ts`, an optional `query` argument); Rust only caps by characters and never folds or trims.
+- Ranking (review round 1): a pick counts only for an item matching the query as a contiguous run (tier 2 and up), never through scattered letters, so a pick for `s` cannot put Sleep first for `sp`. Picked items sort first by pick score, then by today's score; unpicked items follow in today's order. A pick score under `FORGET` (0.01) counts as none, and `load` prunes decayed picks.
 - `search` takes `picks` as its 4th argument; `limit` moved to the 5th.
 - `record_pick` also prunes, so memory stays bounded between saves; `save` prunes again to drop what decayed meanwhile.
 - Reveal records no pick because it records no use (`Open.record`); ⌘Enter on a section is a use and does teach a pick.

@@ -24,10 +24,11 @@ const MAX_KEYS: usize = 500;
 const FORGET: f64 = 0.01;
 const DEBOUNCE: Duration = Duration::from_secs(2);
 
-/// Counts one pick of `id` for `key` (trimmed, cut at `KEY_MAX` characters). Nothing for an empty key or id: the empty
-/// query has no pick to learn.
+/// Counts one pick of `id` for `key` (cut at `KEY_MAX` characters, never trimmed: the webview sends the final key, and
+/// a trim here could move it away from the one the search looks up). Nothing for an empty key or id: the empty query
+/// has no pick to learn.
 pub fn record_pick(picks: &mut Picks, key: &str, id: &str, now: u64) {
-    let key: String = key.trim().chars().take(KEY_MAX).collect();
+    let key: String = key.chars().take(KEY_MAX).collect();
     if key.is_empty() || id.is_empty() {
         return;
     }
@@ -58,13 +59,15 @@ pub fn scores(picks: &Picks, now: u64) -> HashMap<String, HashMap<String, f64>> 
     picks.iter().map(|(k, ids)| (k.clone(), ids.iter().map(|(id, e)| (id.clone(), decayed(e, now))).collect())).collect()
 }
 
-pub fn load(file: &Path) -> Picks {
+/// Picks decayed below `FORGET` as of `now` are dropped, so one that fell out of use cannot still rank an item.
+pub fn load(file: &Path, now: u64) -> Picks {
     let text = std::fs::read_to_string(file).unwrap_or_default();
     let mut picks: Picks = serde_json::from_str(&text).unwrap_or_default();
     for ids in picks.values_mut() {
         ids.retain(|_, e| e.score.is_finite() && e.score > 0.0);
     }
     picks.retain(|k, ids| !ids.is_empty() && !k.is_empty());
+    prune(&mut picks, now);
     picks
 }
 
@@ -88,7 +91,7 @@ pub struct Store {
 
 pub fn setup(app: &AppHandle) {
     let file = app.path().app_data_dir().ok().map(|d| d.join(FILE));
-    let picks = file.as_deref().map(load).unwrap_or_default();
+    let picks = file.as_deref().map(|f| load(f, now())).unwrap_or_default();
     app.manage(Mutex::new(Store { picks, file, dirty: false }));
 }
 
@@ -154,16 +157,15 @@ mod tests {
     }
 
     #[test]
-    fn keys_are_trimmed_capped_at_30_chars_and_never_empty() {
+    fn keys_are_capped_at_30_chars_kept_as_sent_and_never_empty() {
         let mut p = Picks::new();
-        record_pick(&mut p, "  me ", "/Meet.app", 0);
-        assert!(p.contains_key("me"));
+        // the webview folds "¨me" to " me": stored as sent, so the search finds it
+        record_pick(&mut p, " me", "/Meet.app", 0);
+        assert!(p.contains_key(" me") && !p.contains_key("me"));
         let long = "é".repeat(45); // characters, not bytes
         record_pick(&mut p, &long, "/A.app", 0);
         assert_eq!(p.keys().find(|k| k.starts_with('é')).unwrap().chars().count(), 30);
-        for key in ["", "   "] {
-            record_pick(&mut p, key, "/A.app", 0);
-        }
+        record_pick(&mut p, "", "/A.app", 0);
         record_pick(&mut p, "x", "", 0);
         assert_eq!(p.len(), 2);
     }
@@ -183,6 +185,15 @@ mod tests {
         }
         assert_eq!(p.len(), MAX_KEYS);
         assert!(["k0", "k1", "k2"].iter().all(|k| !p.contains_key(*k)) && p.contains_key("k3") && p.contains_key("k502"));
+        // stalest means the newest pick under the key: a key with an old and a fresh id is fresh
+        let mut p = Picks::new();
+        record_pick(&mut p, "mix", "/Old.app", 0);
+        record_pick(&mut p, "mix", "/New.app", 9000);
+        for n in 0..MAX_KEYS - 1 {
+            record_pick(&mut p, &format!("k{n}"), "/A.app", 100 + n as u64);
+        }
+        record_pick(&mut p, "new", "/A.app", 9001); // 501 keys: drops k0, not "mix"
+        assert!(p.contains_key("mix") && !p.contains_key("k0") && p.contains_key("k1") && p.len() == MAX_KEYS);
         // a key refreshed by a new pick is not stale
         let mut p = Picks::new();
         for n in 0..MAX_KEYS {
@@ -197,22 +208,29 @@ mod tests {
     fn corrupt_or_missing_file_is_empty_and_save_round_trips() {
         let tmp = tempfile::tempdir().unwrap();
         let file = tmp.path().join("sub/picks.json");
-        assert!(load(&file).is_empty());
+        assert!(load(&file, 0).is_empty());
         std::fs::create_dir_all(file.parent().unwrap()).unwrap();
         for bad in ["{not json", r#"{"me":"x"}"#, r#"["a"]"#] {
             std::fs::write(&file, bad).unwrap();
-            assert!(load(&file).is_empty(), "{bad}");
+            assert!(load(&file, 0).is_empty(), "{bad}");
         }
         std::fs::write(&file, r#"{"me":{"/A.app":{"score":-1,"at":0},"/B.app":{"score":2,"at":0}},"gone":{"/A.app":{"score":0,"at":0}}}"#).unwrap();
-        assert_eq!(load(&file).keys().collect::<Vec<_>>(), ["me"]);
-        assert_eq!(load(&file)["me"].keys().collect::<Vec<_>>(), ["/B.app"]);
+        assert_eq!(load(&file, 0).keys().collect::<Vec<_>>(), ["me"]);
+        assert_eq!(load(&file, 0)["me"].keys().collect::<Vec<_>>(), ["/B.app"]);
+
+        // a pick that decayed out while hop was closed is gone on load
+        std::fs::write(&file, r#"{"me":{"/A.app":{"score":1,"at":0}}}"#).unwrap();
+        assert!(load(&file, 8 * WEEK).is_empty());
+        assert_eq!(load(&file, WEEK).len(), 1);
 
         let mut p = Picks::new();
         record_pick(&mut p, "me", "/A.app", 0);
         p.entry("old".into()).or_default().insert("/A.app".into(), Entry { score: 0.001, at: 0 });
         save(&file, &p, 0).unwrap();
-        assert_eq!(load(&file), Picks::from([("me".into(), HashMap::from([("/A.app".into(), Entry { score: 1.0, at: 0 })]))]));
+        assert_eq!(load(&file, 0), Picks::from([("me".into(), HashMap::from([("/A.app".into(), Entry { score: 1.0, at: 0 })]))]));
         assert!(!file.with_extension("json.tmp").exists());
+        // the file itself is pruned, not only what load drops
+        assert!(!std::fs::read_to_string(&file).unwrap().contains("old"));
     }
 
     #[test]
