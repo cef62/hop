@@ -1,5 +1,5 @@
-import { expect, test } from "vitest";
-import { LIMIT, boost, move, prepare, search, type Item } from "./rank";
+import { describe, expect, test } from "vitest";
+import { LIMIT, PICK_KEY, boost, move, pickKey, prepare, search, type Item, type Picks } from "./rank";
 
 const app = (name: string, altNames: string[] = []): Item => {
   const path = `/Applications/${altNames[0] ?? name}.app`;
@@ -53,9 +53,11 @@ test("selection stays within the rows", () => {
 test.skipIf(!!process.env.CI)("1000 apps searched under 5 ms per keystroke", () => {
   const word = () => Math.random().toString(36).slice(2, 2 + 3 + Math.floor(Math.random() * 6));
   const big = prepare(Array.from({ length: 1000 }, () => app(`${word()} ${word()}`, [word()])));
-  search("warm", big, {}); // JIT warm-up, not part of the per-keystroke cost
+  const keys = Array.from({ length: 500 }, () => word().slice(0, 3));
+  const picks = Object.fromEntries(keys.map((k, n) => [k, { [big[n].item.id]: 1 }])); // 500 keys
+  search("warm", big, {}, picks); // JIT warm-up, not part of the per-keystroke cost
   const t0 = performance.now();
-  for (const q of ["a", "ab", "abc", "x", "vsc"]) search(q, big, {});
+  for (const q of ["a", "ab", "abc", "x", "vsc"]) search(q, big, {}, picks);
   expect((performance.now() - t0) / 5).toBeLessThan(5);
 });
 
@@ -83,4 +85,72 @@ test("commands never join the empty-query list, however often used, but still ra
   // the habit "hotkey, Enter" on an empty palette must never sleep the Mac
   expect(search("", list, fr).map((r) => r.id)).toEqual(["/Applications/Safari.app"]);
   expect(search("sle", list, fr)[0].id).toBe("cmd:sleep");
+});
+
+describe("learned picks", () => {
+  const list = prepare([app("Messages"), app("Google Meet"), app("Memo"), app("Mail"), app("Meeting Notes")]);
+  const picks: Picks = { me: { [apps0("Google Meet")]: 1 } };
+  function apps0(n: string) {
+    return `/Applications/${n}.app`;
+  }
+  const go = (q: string, p: Picks = picks, fr = {}) => search(q, list, fr, p).map((a) => a.name);
+
+  test("a pick for 'me' comes first for me, mee, meet, but not for m or mes", () => {
+    expect(go("me", {})[0]).not.toBe("Google Meet"); // premise: Meet is not first without the pick
+    expect(go("me")[0]).toBe("Google Meet");
+    expect(go("mee")[0]).toBe("Google Meet");
+    expect(go("meet")[0]).toBe("Google Meet");
+    expect(go("m")).toEqual(go("m", {})); // learned key longer than the query
+    expect(go("mes")).toEqual(go("mes", {}));
+  });
+
+  test("a picked item that stops matching is not shown", () => {
+    expect(go("mes")).not.toContain("Google Meet");
+    expect(go("mx")).not.toContain("Google Meet");
+  });
+
+  test("the query is folded and trimmed like the key", () => {
+    expect(go("  ME ")[0]).toBe("Google Meet");
+  });
+
+  test("scores of every key that prefixes the query add up, and the higher sum wins", () => {
+    const p = { me: { [apps0("Messages")]: 1, [apps0("Google Meet")]: 1.5 }, mem: { [apps0("Memo")]: 2 } };
+    expect(go("me", p)[0]).toBe("Google Meet");
+    expect(go("mem", p)[0]).toBe("Memo");
+    expect(go("me", { me: { [apps0("Messages")]: 1 }, mee: { [apps0("Google Meet")]: 5 } })[0]).toBe("Messages"); // mee is longer than me
+  });
+
+  test("a one-letter key applies, and scores under several prefix keys sum", () => {
+    expect(go("me", { m: { [apps0("Google Meet")]: 1 } })[0]).toBe("Google Meet");
+    // Meet: 1 under m + 1 under me = 2, which beats Meeting Notes' single 1.5 under mee
+    const p: Picks = { m: { [apps0("Google Meet")]: 1 }, me: { [apps0("Google Meet")]: 1 }, mee: { [apps0("Meeting Notes")]: 1.5 } };
+    expect(go("mee", p)[0]).toBe("Google Meet");
+  });
+
+  test("empty query ignores picks", () => {
+    expect(search("", list, {}, { "": { [apps0("Mail")]: 9 } })).toEqual([]);
+    expect(search("  ", list, {}, { "": { [apps0("Mail")]: 9 } })).toEqual([]);
+  });
+
+  test("a pick outranks usage, and the rest keep today's order", () => {
+    const fr = { [apps0("Messages")]: 50 };
+    expect(go("me", picks, fr)).toEqual(["Google Meet", ...go("me", {}, fr).filter((n) => n !== "Google Meet")]);
+  });
+
+  test("unknown ids and zero scores are inert", () => {
+    expect(go("me", { me: { "/Gone.app": 3, [apps0("Mail")]: 0 } })).toEqual(go("me", {}));
+  });
+
+  test("the key is the folded, trimmed query capped at PICK_KEY chars", () => {
+    expect(pickKey("  Réjouïr ")).toBe("rejouir");
+    expect(pickKey("x".repeat(PICK_KEY + 5))).toHaveLength(PICK_KEY);
+    expect(pickKey("   ")).toBe("");
+  });
+
+  test("an old long key still applies to its own prefix query", () => {
+    const long = "a".repeat(PICK_KEY);
+    const l = prepare([app(long + "zz"), app(long + "b")]);
+    expect(search(long + "zz", l, {}, { [long]: { [apps0(long + "b")]: 1 } }).map((a) => a.name)[0]).toBe(long + "zz"); // no match for b
+    expect(search(long, l, {}, { [long]: { [apps0(long + "b")]: 1 } }).map((a) => a.name)[0]).toBe(long + "b");
+  });
 });

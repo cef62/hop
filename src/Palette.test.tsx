@@ -89,8 +89,11 @@ test("a calculator result is row 0: it copies, the apps follow it, and ⌘N and 
   const one = [answer("14")];
   expect(command(0, one, rows, true, " 2+3*4 ")).toEqual(["copy_text", { text: "14", expr: "2+3*4" }]);
   expect(command(0, one, rows, false, "2+3*4")).toEqual(["copy_text", { text: "14", expr: "2+3*4" }]);
-  expect(command(1, one, rows, true, "2+3*4")).toEqual(["run", { id: rows[0].id, reveal: true }]);
-  expect(command(0, [], rows, false, "fi")).toEqual(["run", { id: rows[0].id, reveal: false }]);
+  expect(command(1, one, rows, true, "2+3*4")).toEqual(["run", { id: rows[0].id, reveal: true, query: "2+3*4" }]);
+  expect(command(0, [], rows, false, "fi")).toEqual(["run", { id: rows[0].id, reveal: false, query: "fi" }]);
+  // the run carries the folded, trimmed query the pick is learned under; empty for nothing typed
+  expect(command(0, [], rows, false, "  FI ")).toEqual(["run", { id: rows[0].id, reveal: false, query: "fi" }]);
+  expect(command(0, [], rows, false, "")).toEqual(["run", { id: rows[0].id, reveal: false, query: "" }]);
   expect(command(rows.length + 1, one, rows, false, "2+3*4")).toBeNull();
   // the footer names the selected row's Enter action
   expect(first).toContain('<span class="keys" aria-hidden="true">↵ copy · ⌘1–9 open · esc close</span>');
@@ -126,8 +129,8 @@ test("sections share the System Settings icon but render keyed by id, tagged, op
   expect(html).toContain('placeholder="Search apps and settings" aria-label="Search apps and settings"');
   expect(html.match(/<span class="tag">System Settings<\/span>/g)).toHaveLength(2); // the app row has no tag
   expect(html.match(/src="icon:\/\/localhost\/%2FSystem%2FApplications%2FSystem%20Settings.app"/g)).toHaveLength(3);
-  expect(command(0, [], list, true, "s")).toEqual(["run", { id: "pane:a", reveal: true }]);
-  expect(command(1, [answer("3")], list, false, "1+2")).toEqual(["run", { id: "pane:a", reveal: false }]);
+  expect(command(0, [], list, true, "s")).toEqual(["run", { id: "pane:a", reveal: true, query: "s" }]);
+  expect(command(1, [answer("3")], list, false, "1+2")).toEqual(["run", { id: "pane:a", reveal: false, query: "1+2" }]);
   // ⌘Enter opens a section too: the footer does not offer "reveal in Finder" for one
   expect(html).toContain('<span class="keys" aria-hidden="true">↵ open · ⌘1–9 open · esc close</span>');
   const onApp = renderToStaticMarkup(<PaletteView {...props} sel={2} />);
@@ -164,7 +167,7 @@ test("command rows draw a glyph, request no icon, and run by id", () => {
   expect(html.match(/<span class="icon glyph" aria-hidden="true"><svg viewBox="0 0 24 24">/g)).toHaveLength(2);
   expect(html.match(/<img/g)).toHaveLength(1); // Safari only
   expect(html).not.toContain("icon://localhost/\""); // no request for an empty path
-  expect(command(1, [], commands, false, "l")).toEqual(["run", { id: "cmd:lock", reveal: false }]);
+  expect(command(1, [], commands, false, "l")).toEqual(["run", { id: "cmd:lock", reveal: false, query: "l" }]);
 });
 
 const old: Entry = { expr: "12*7+3", result: "87" };
@@ -233,7 +236,7 @@ test("rows: 1 result + 5 history + 3 items count, number and select in that orde
   expect(rowAt(9, lead, three)).toBeUndefined();
   // history rows never run a command: the reducer edits the query
   for (let i = 1; i <= 5; i++) expect(command(i, lead, three, false, "2+2")).toBeNull();
-  expect(command(6, lead, three, true, "2+2")).toEqual(["run", { id: three[0].id, reveal: true }]);
+  expect(command(6, lead, three, true, "2+2")).toEqual(["run", { id: three[0].id, reveal: true, query: "2+2" }]);
   const html = renderToStaticMarkup(<PaletteView style="compact" query="2+2" rows={three} leads={lead} sel={8} cmd error="" onQuery={() => {}} onOpen={() => {}} />);
   expect(html).toContain('aria-hidden="true">⌘9</span>');
   expect(html.match(/aria-keyshortcuts=/g)).toHaveLength(9);
