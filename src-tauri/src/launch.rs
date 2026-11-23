@@ -13,14 +13,30 @@ pub fn pane_url(id: &str) -> Option<String> {
     crate::panes::bundle_id(id).filter(|b| !b.is_empty()).map(|b| format!("x-apple.systempreferences:{b}"))
 }
 
-/// The arguments to `open` for `item`, the index entry of the id the webview sent (`None`: not in the index).
-/// `reveal` (⌘Enter) shows an app in Finder; a section has no file to show and opens as with Enter.
-fn open_args(item: Option<&Item>, reveal: bool) -> Result<Vec<String>, String> {
+/// What `run` does for an item: `open` with `args`; on success, count a use when `record`; if `open` cannot start, say
+/// `fail`.
+#[derive(Debug)]
+struct Open {
+    args: Vec<String>,
+    record: bool,
+    fail: &'static str,
+}
+
+/// The plan for `item`, the index entry of the id the webview sent (`None`: not in the index). `reveal` (⌘Enter) shows
+/// an app in Finder, which is not a use of it; a section has no file to show and opens as with Enter. Only an app is a
+/// file that can be gone (`exists`, the filesystem in `run`).
+fn open_args(item: Option<&Item>, reveal: bool, exists: impl Fn(&str) -> bool) -> Result<Open, String> {
     let item = item.ok_or("Not something hop knows")?;
     match item.kind {
-        Kind::App if reveal => Ok(vec!["-R".into(), item.id.clone()]),
-        Kind::App => Ok(vec![item.id.clone()]),
-        Kind::Pane => pane_url(&item.id).map(|u| vec![u]).ok_or_else(|| "Not a System Settings section".into()),
+        Kind::App if !exists(&item.id) => Err("This app is no longer there".into()),
+        Kind::App => {
+            let args = if reveal { vec!["-R".into(), item.id.clone()] } else { vec![item.id.clone()] };
+            Ok(Open { args, record: !reveal, fail: "Could not open this app" })
+        }
+        Kind::Pane => {
+            let url = pane_url(&item.id).ok_or("Not a System Settings section")?;
+            Ok(Open { args: vec![url], record: true, fail: "Could not open System Settings" })
+        }
         Kind::Command => Err("hop cannot run this yet".into()),
     }
 }
@@ -30,19 +46,13 @@ fn open_args(item: Option<&Item>, reveal: bool) -> Result<Vec<String>, String> {
 /// (a damaged app) is logged, and macOS shows its own alert for most of those.
 #[tauri::command]
 pub fn run(app: AppHandle, id: String, reveal: bool) -> Result<(), String> {
-    let item = crate::apps::item(&app, &id);
-    let args = open_args(item.as_ref(), reveal)?;
-    let is_app = item.is_some_and(|i| i.kind == Kind::App);
-    if is_app && !Path::new(&id).exists() {
-        return Err("This app is no longer there".into());
-    }
-    let mut child = Command::new("/usr/bin/open").args(&args).spawn().map_err(|e| {
+    let open = open_args(crate::apps::item(&app, &id).as_ref(), reveal, |p| Path::new(p).exists())?;
+    let mut child = Command::new("/usr/bin/open").args(&open.args).spawn().map_err(|e| {
         eprintln!("hop: could not run open for {id} ({e})");
-        if is_app { "Could not open this app" } else { "Could not open System Settings" }.to_string()
+        open.fail.to_string()
     })?;
     crate::panel::hide(&app);
-    // revealing in Finder is not a use of the app
-    if !(is_app && reveal) {
+    if open.record {
         crate::history::launched(&app, &id);
     }
     std::thread::spawn(move || match child.wait() {
@@ -63,18 +73,36 @@ mod tests {
 
     #[test]
     fn only_indexed_items_run_and_each_kind_opens_its_own_way() {
-        let refused = |r: Result<Vec<String>, String>| r.unwrap_err();
-        assert_eq!(refused(open_args(None, false)), "Not something hop knows");
+        let there = |_: &str| true;
+        let refused = |r: Result<Open, String>| r.unwrap_err();
+        assert_eq!(refused(open_args(None, false, there)), "Not something hop knows");
         let a = Item { path: Some("/A.app".into()), ..item(Kind::App, "/A.app") };
-        assert_eq!(open_args(Some(&a), false).unwrap(), ["/A.app"]);
-        assert_eq!(open_args(Some(&a), true).unwrap(), ["-R", "/A.app"]);
+        let args = |o: Open| o.args;
+        assert_eq!(args(open_args(Some(&a), false, there).unwrap()), ["/A.app"]);
+        assert_eq!(args(open_args(Some(&a), true, there).unwrap()), ["-R", "/A.app"]);
         // a section opens System Settings on it; ⌘Enter has nothing to reveal and opens it too
         let p = item(Kind::Pane, "pane:com.apple.settings.Storage");
         for reveal in [false, true] {
-            assert_eq!(open_args(Some(&p), reveal).unwrap(), ["x-apple.systempreferences:com.apple.settings.Storage"]);
+            assert_eq!(args(open_args(Some(&p), reveal, there).unwrap()), ["x-apple.systempreferences:com.apple.settings.Storage"]);
         }
-        assert!(open_args(Some(&item(Kind::Pane, "com.apple.settings.Storage")), false).is_err());
-        assert!(open_args(Some(&item(Kind::Command, "cmd:lock")), false).is_err());
+        assert!(open_args(Some(&item(Kind::Pane, "com.apple.settings.Storage")), false, there).is_err());
+        assert!(open_args(Some(&item(Kind::Command, "cmd:lock")), false, there).is_err());
+    }
+
+    #[test]
+    fn only_apps_need_their_bundle_and_only_a_reveal_is_not_a_use() {
+        let gone = |_: &str| false;
+        let a = Item { path: Some("/A.app".into()), ..item(Kind::App, "/A.app") };
+        assert_eq!(open_args(Some(&a), false, gone).unwrap_err(), "This app is no longer there");
+        // a section id is no file: it opens whatever `exists` says
+        let p = item(Kind::Pane, "pane:com.apple.settings.Storage");
+        let o = open_args(Some(&p), false, gone).unwrap();
+        assert!(o.record && !o.fail.contains("app"), "{}", o.fail);
+        assert!(open_args(Some(&p), true, gone).unwrap().record, "⌘Enter on a section is a use");
+        let there = |_: &str| true;
+        assert!(open_args(Some(&a), false, there).unwrap().record);
+        assert!(!open_args(Some(&a), true, there).unwrap().record, "revealing in Finder counted as a use");
+        assert_eq!(open_args(Some(&a), false, there).unwrap().fail, "Could not open this app");
     }
 
     #[test]
