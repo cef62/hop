@@ -258,3 +258,8 @@ Deviations from Tasks 8-11, recorded in the spec's "Calculator history" section:
 - The reducer pattern scaled: history, confirm and repeat guards all in `step`, glue stays thin. A held key now acts once everywhere, a simpler rule than per-row exceptions.
 - Deferred: `7-` lists history while typing `7-Zip` until the next character.
 - Adjustment for PR 4: Sonnet implements and a Sonnet review checks the shots against the real UI.
+
+### After learned picks (#25, 2026-11-23)
+
+- Two review rounds (FAIL with 2 Majors, then PASS). Both Majors were ranking rules the short design left loose: a pick applied through scattered letter matches (a one-letter pick could put Sleep first for `sp`), and a saturating boost let tier beat a clearly higher pick count. Lesson: a ranking change needs its rule written as an ordering (what sorts before what), plus the adversarial inputs (one-letter keys, commands) in the design, not left to the implementer.
+- The implementer pushed a red intermediate commit for the second time in this plan, despite the brief. Next plan: give agents a single `pnpm gate` script and ask them to commit only after it prints its success line.

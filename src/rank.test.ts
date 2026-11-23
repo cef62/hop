@@ -170,6 +170,9 @@ describe("learned picks", () => {
     expect(ids("s", sleep)[0]).toBe("Sleep"); // where it was picked it stays first
     const settings: Picks = { s: { [apps0("System Settings")]: 5 } };
     expect(ids("sig", settings)[0]).toBe("Signal");
+    // a contiguous substring (tier 2) keeps the pick: "st" sits inside "system", Steam is a prefix match
+    const withSteam = prepare([app("Steam"), app("System Settings")]);
+    expect(search("st", withSteam, {}, settings).map((a) => a.name)).toEqual(["System Settings", "Steam"]);
   });
 
   test("the cap counts code points: an emoji at the boundary is never cut in half", () => {
