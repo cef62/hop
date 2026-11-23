@@ -11,13 +11,14 @@ mod launch;
 mod login;
 mod panel;
 mod panes;
+mod picks;
 mod settings;
 mod update;
 mod whatsnew;
 
 /// What each window may invoke: the palette (`main`), Settings and What's new. Only `open_whatsnew` is shared (the
 /// palette's pill and Settings' "What's new…").
-const MAIN_COMMANDS: &[&str] = &["hide_palette", "card_frame", "perf_mark", "list_apps", "frecency", "run", "copy_text", "calc_history", "open_settings", "open_whatsnew"];
+const MAIN_COMMANDS: &[&str] = &["hide_palette", "card_frame", "perf_mark", "list_apps", "frecency", "picks", "run", "copy_text", "calc_history", "open_settings", "open_whatsnew"];
 const SETTINGS_COMMANDS: &[&str] = &["get_settings", "set_settings", "pick_path", "set_login", "close_settings", "check_update", "open_whatsnew"];
 const WHATSNEW_COMMANDS: &[&str] = &["whatsnew_info", "whatsnew_install", "whatsnew_close"];
 
@@ -42,10 +43,11 @@ fn with_window_guard<R: tauri::Runtime>(handler: impl Fn(tauri::ipc::Invoke<R>) 
     }
 }
 
-/// Quit from the menu-bar icon. The launch history is written first: a launch in the last two seconds is still only
-/// in memory (`history::DEBOUNCE`).
+/// Quit from the menu-bar icon. The launch history and the learned picks are written first: a launch in the last two
+/// seconds is still only in memory (`history::DEBOUNCE`).
 fn quit(app: &tauri::AppHandle) {
     history::flush_now(app);
+    picks::flush_now(app);
     app.exit(0);
 }
 
@@ -105,6 +107,7 @@ pub fn run() {
             panel::setup(h);
             hotkey::start(h, &settings::current(h).hotkey, started);
             history::setup(h);
+            picks::setup(h);
             calc_history::setup(h);
             apps::setup(h); // scans on its own thread, after the hotkey is live
             update::setup(h); // before the tray, which reads the pending version
@@ -129,6 +132,7 @@ pub fn run() {
             panel::perf_mark,
             apps::list_apps,
             history::frecency,
+            picks::picks,
             calc_history::calc_history,
             launch::run,
             clipboard::copy_text,
@@ -153,7 +157,10 @@ pub fn run() {
     app.run(|_app, _ev| match _ev {
         #[cfg(target_os = "macos")]
         tauri::RunEvent::Reopen { .. } => panel::show(_app),
-        tauri::RunEvent::Exit => history::flush_now(_app),
+        tauri::RunEvent::Exit => {
+            history::flush_now(_app);
+            picks::flush_now(_app);
+        }
         _ => {}
     });
 }
@@ -177,6 +184,7 @@ mod tests {
         assert!(!allowed("", "launch") && !allowed("whatsnew", "get_settings") && !allowed("main", "unknown"));
         assert!(allowed("main", "copy_text") && !allowed("settings", "copy_text") && !allowed("whatsnew", "copy_text"));
         assert!(allowed("main", "calc_history") && !allowed("settings", "calc_history") && !allowed("whatsnew", "calc_history"));
+        assert!(allowed("main", "picks") && !allowed("settings", "picks") && !allowed("whatsnew", "picks"));
         assert!(allowed("main", "run") && !allowed("main", "launch") && !allowed("settings", "run") && !allowed("whatsnew", "run"));
         assert!(!allowed("main", "check_update") && !allowed("main", "whatsnew_install") && !allowed("settings", "whatsnew_install"));
     }

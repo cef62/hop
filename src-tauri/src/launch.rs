@@ -55,15 +55,21 @@ fn counted(act: impl FnOnce() -> Result<(), String>, record: impl FnOnce()) -> R
     Ok(())
 }
 
-/// Opens row `id`, then hides the palette. Only items in the index run, since the id comes from the webview (a command
-/// is in it only while "System commands" is on). An app removed since the last scan fails here and the palette stays
+/// Opens row `id` (`query`: what was typed, folded by the webview, for the pick the use teaches), then hides the
+/// palette. Only items in the index run, since the id comes from the webview (a command is in it only while "System
+/// commands" is on). An app removed since the last scan fails here and the palette stays
 /// open with the error; a failure `open` reports later (a damaged app) is logged, and macOS shows its own alert for most
 /// of those. Async, so a command's Apple Event (and the Automation prompt its first use brings) never blocks the main
 /// thread; the palette is hidden on the main thread.
 #[tauri::command(async)]
-pub fn run(app: AppHandle, id: String, reveal: bool) -> Result<(), String> {
+pub fn run(app: AppHandle, id: String, reveal: bool, query: Option<String>) -> Result<(), String> {
+    // a use also teaches hop what `query` (folded by the webview) is for; no query, no pick
+    let used = |app: &AppHandle| {
+        crate::history::launched(app, &id);
+        crate::picks::picked(app, query.as_deref().unwrap_or(""), &id);
+    };
     let open = match open_args(crate::apps::item(&app, &id).as_ref(), reveal, |p| Path::new(p).exists())? {
-        Plan::Command => return counted(|| crate::commands::exec(&id, &mut crate::commands::System(app.clone())), || crate::history::launched(&app, &id)),
+        Plan::Command => return counted(|| crate::commands::exec(&id, &mut crate::commands::System(app.clone())), || used(&app)),
         Plan::Open(open) => open,
     };
     let mut child = Command::new("/usr/bin/open").args(&open.args).spawn().map_err(|e| {
@@ -72,7 +78,7 @@ pub fn run(app: AppHandle, id: String, reveal: bool) -> Result<(), String> {
     })?;
     crate::panel::on_main(&app, crate::panel::hide);
     if open.record {
-        crate::history::launched(&app, &id);
+        used(&app);
     }
     std::thread::spawn(move || match child.wait() {
         Ok(s) if s.success() => {}

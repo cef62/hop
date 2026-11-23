@@ -5,7 +5,7 @@ import { calc } from "./calc";
 import { live, step, type Event, type State } from "./confirm";
 import { insertable, leads, rowAt, total, type Entry, type Lead, type Row } from "./leads";
 import { paletteKey, type Actions } from "./keys";
-import { move, prepare, search, type Frecency, type Item } from "./rank";
+import { move, pickKey, prepare, search, type Frecency, type Item, type Picks } from "./rank";
 
 export type Style = "compact" | "roomy";
 type Index = { generation: number; items: Item[] };
@@ -38,12 +38,12 @@ type ViewProps = {
 
 /** The command Enter (⌘Enter: `reveal`) sends for row `i`, or null: past the end, or a history row (the reducer edits
  * the query for it, `step` in confirm.ts). The result row copies (there is nothing to reveal) and records the copy
- * under its expression, but no launch. */
+ * under its expression, but no launch. A run carries the folded query: the backend learns the pick under it. */
 export function command(i: number, lead: Lead[], rows: Item[], reveal: boolean, query: string): [string, Record<string, unknown>] | null {
   const r = rowAt(i, lead, rows);
   if (!r || r.kind === "history") return null;
   if (r.kind === "result") return ["copy_text", { text: r.text, expr: query.trim() }];
-  return ["run", { id: r.id, reveal }];
+  return ["run", { id: r.id, reveal, query: pickKey(query) }];
 }
 
 /** The footer's keys for the selected row: only an app has a Finder location to reveal. */
@@ -222,6 +222,7 @@ export function PaletteView({ style, query, rows, leads: lead = [], sel, armed, 
 export function Palette() {
   const [index, setIndex] = useState<Index>({ generation: 0, items: [] });
   const [frecency, setFrecency] = useState<Frecency>({});
+  const [picks, setPicks] = useState<Picks>({});
   const [style, setStyle] = useState<Style>("compact");
   const [query, setQuery] = useState("");
   const [sel, setSel] = useState(0);
@@ -240,7 +241,7 @@ export function Palette() {
   const keyAt = useRef<number | null>(null);
 
   const items = useMemo(() => prepare(index.items), [index]);
-  const rows = useMemo(() => search(query, items, frecency), [query, items, frecency]);
+  const rows = useMemo(() => search(query, items, frecency, picks), [query, items, frecency, picks]);
   const lead = useMemo(() => leads(query, calculator ? calc(query) : null, history, calculator), [query, history, calculator]);
   const count = total(rows, lead);
   const at = Math.min(sel, Math.max(count - 1, 0)); // the list can shrink under the selection (app removed)
@@ -272,7 +273,10 @@ export function Palette() {
   useEffect(() => {
     // a list_apps reply can arrive after a newer apps-changed event: keep the higher generation
     const take = (i: Index) => setIndex((cur) => (i.generation > cur.generation ? i : cur));
-    const loadFrecency = () => invoke<Frecency>("frecency").then(setFrecency);
+    const loadFrecency = () => {
+      invoke<Frecency>("frecency").then(setFrecency);
+      invoke<Picks>("picks").then(setPicks, () => setPicks({}));
+    };
     const subs = [
       listen<Index>("apps-changed", (e) => take(e.payload)),
       listen<Look>("palette-shown", (e) => {
