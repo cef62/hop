@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { LIMIT, PICK_KEY, PICK_FORGET, boost, move, pickKey, prepare, search, type Item, type Picks } from "./rank";
+import { LIMIT, PICK_KEY, PICK_FORGET, boost, move, pickKey, prepare, search, strong, type Item, type Picks } from "./rank";
 
 const app = (name: string, altNames: string[] = []): Item => {
   const path = `/Applications/${altNames[0] ?? name}.app`;
@@ -194,4 +194,21 @@ describe("learned picks", () => {
     expect(search(long + "zz", l, {}, { [long]: { [apps0(long + "b")]: 1 } }).map((a) => a.name)[0]).toBe(long + "zz"); // no match for b
     expect(search(long, l, {}, { [long]: { [apps0(long + "b")]: 1 } }).map((a) => a.name)[0]).toBe(long + "b");
   });
+});
+
+test("strong: only a prefix, word-start or exact match of a query that starts with a letter or digit", () => {
+  const p = (...n: string[]) => prepare(n.map((x) => app(x)));
+  expect(strong("7-", p("7-Zip"))).toBe(true);
+  expect(strong("1-", p("1Password 7 - Password Manager"))).toBe(false);
+  expect(strong("(", p("Microsoft Teams (work or school)"))).toBe(false);
+  expect(strong("-", p("Wi\u2011Fi"))).toBe(false);
+  expect(strong("-", p("1Password 7 - Password Manager"))).toBe(false);
+  // a word start counts for a query that starts with a word character, an alt name too
+  expect(strong("7-z", p("Foo 7-Zip"))).toBe(true);
+  expect(strong("7-", prepare([app("Archiver", ["7-Zip"])]))).toBe(true);
+  // a loose match is not strong
+  expect(strong("7-", p("Foo7-Zip"))).toBe(false);
+  expect(strong("7-", p())).toBe(false);
+  expect(strong("vsc", p("Visual Studio Code"))).toBe(false); // initials, tier 3
+  expect(strong("sual", p("Visual Studio Code"))).toBe(false); // substring, tier 2
 });
