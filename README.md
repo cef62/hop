@@ -20,6 +20,9 @@ hop has no Dock icon: press **⌥Space** (the default hotkey) or click its menu-
   open often rank higher; with nothing typed, the palette lists them. **↑↓** select, **Enter** opens,
   **⌘Enter** reveals the app in Finder. **⌘1**–**⌘9** open the Nth result directly (hold **⌘** to see the
   numbers).
+- System Settings sections: type a section's name, such as `privacy` or `storage`, and **Enter** opens System
+  Settings on it (Privacy & Security, General › Storage). Sections match by their name in each of your Mac's
+  languages and in English, carry a "System Settings" tag, and rank with the apps.
 - Calculator: type a sum such as `2+3*4` and the answer shows above the apps; **Enter** (or **⌘1**) copies it and
   hides the palette, ready to paste. It takes `+ - * / % ^` (`%` is the remainder), parentheses and decimals with a
   `.`; `×` and `÷` work too. A bare number such as `2024` stays an app search. Whole numbers up to 9007199254740991 are exact; other
