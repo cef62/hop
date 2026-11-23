@@ -6,8 +6,7 @@ export const fold = (s: string): string =>
   s
     .normalize("NFKD")
     .replace(/[̀-ͯ]/g, "")
-    .replace(/[\u2010\u2011]/g, "-")
-    .replace(/\s/g, " ")
+    .replace(/[\u2010\u2011]/g, "-") // NFKD has made U+2011 a U+2010 and every Unicode space a " "
     .toLowerCase();
 
 const WORD = /[\p{L}\p{N}]/u;

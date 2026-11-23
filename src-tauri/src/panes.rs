@@ -78,14 +78,13 @@ mod mac {
     }
 
     /// String `key` of a loctable for a preferred language: the exact region (`it-IT` → `it_IT`, `zh-Hant-TW` →
-    /// `zh_TW`), the region the loctables use for a script or for Latin America, the bare language, then any region of
-    /// it (some loctables have `en_GB` but no `en`).
+    /// `zh_TW`), the region the loctables use for Traditional Chinese or Latin America, the bare language, then any
+    /// region of it (some loctables have `en_GB` but no `en`; Simplified Chinese lands on `zh_CN`, first in key order).
     fn localized(loc: &NSDictionary, lang: &str, key: &str) -> Option<String> {
         let parts: Vec<&str> = lang.split('-').collect();
         let base = parts[0];
         let alias: &[&str] = match (base, parts.get(1).copied()) {
             ("zh", Some("Hant")) => &["zh_TW", "zh_HK"],
-            ("zh", Some("Hans")) => &["zh_CN"],
             ("es", Some(r)) if r != "ES" => &["es_419"],
             _ => &[],
         };
