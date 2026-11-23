@@ -12,6 +12,8 @@
 
 Run before every commit that finishes a task and before opening a PR. Report the results as a table (check, status, details).
 
+`pnpm gate` (from the repo root) checks the lockfile like CI, runs check 1 and the docs site build in one go, and ends with `GATE OK`; commit only after that line. Agents run it before every commit, not only on the final tree.
+
 | # | Check | How |
 |---|---|---|
 | 1 | Verify | `pnpm build`, `pnpm test`, `cd src-tauri && cargo test` all green; new logic has a test (Vitest next to the module, inline `#[cfg(test)]` in Rust) |

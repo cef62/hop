@@ -18,7 +18,8 @@
     "site:dev": "cd site && astro dev",
     "site:build": "astro build --root site",
     "site:preview": "cd site && astro preview",
-    "docs:build": "pnpm site:build"
+    "docs:build": "pnpm site:build",
+    "gate": "pnpm install --frozen-lockfile && pnpm build && pnpm test && cargo test --manifest-path src-tauri/Cargo.toml && pnpm docs:build && echo GATE OK"
   },
   "devDependencies": {
     "@astrojs/markdown-remark": "7.3.6",
