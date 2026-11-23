@@ -130,19 +130,22 @@ test("⌘N and a click on a history row edit it too, from any selection", () => 
   }
 });
 
-test("⌘Enter on a history row appends its result, exponent form as it is, to the typed query", () => {
+test("⌘Enter on a history row inserts its result where the query has a place for it, exponent form as it is", () => {
   const meta = { ...enter, meta: true };
-  expect(gq(idle(0), meta, "1+")).toEqual({ armed: null, sel: 0, run: null, query: "1+87" });
-  expect(gq(idle(1), meta, "1+")).toEqual({ armed: null, sel: 0, run: null, query: "1+1.84467440737e+19" });
-  // after a number the digits run together: the simple rule (leads.ts `insert`)
-  expect(gq(idle(0), meta, "12")).toEqual({ armed: null, sel: 0, run: null, query: "1287" });
-  expect(gq(idle(0), meta, "=")).toEqual({ armed: null, sel: 0, run: null, query: "=87" });
+  const none = { armed: null, sel: 0, run: null };
+  expect(gq(idle(0), meta, "1+")).toEqual({ ...none, query: "1+87" });
+  expect(gq(idle(1), meta, "1+")).toEqual({ ...none, query: "1+1.84467440737e+19" });
+  expect(gq(idle(0), meta, "=")).toEqual({ ...none, query: "87" });
+  expect(gq(idle(0), meta, "")).toEqual({ ...none, query: "87" });
+  // a complete sum or a number has no place for it: nothing happens, the selection stays
+  for (const q of ["12", "1+2", "(1+2)"]) expect(gq(idle(1), meta, q)).toEqual({ armed: null, sel: 1, run: null });
 });
 
 test("⌘Enter on the live result copies it, as Enter does", () => {
   const live1: Row[] = [answer, old];
   for (const meta of [true, false]) expect(step(idle(0), { ...enter, meta }, (i) => live1[i], "6*7")).toEqual({ armed: null, sel: 0, run: 0 });
-  expect(step(idle(1), { ...enter, meta: true }, (i) => live1[i], "6*7")).toEqual({ armed: null, sel: 0, run: null, query: "6*787" });
+  // a history row under a complete sum: ⌘Enter does nothing there
+  expect(step(idle(1), { ...enter, meta: true }, (i) => live1[i], "6*7")).toEqual({ armed: null, sel: 1, run: null });
 });
 
 test("a held Enter does nothing on a lead: not an edit, not a copy, not the live row the first press made", () => {
@@ -186,4 +189,14 @@ test("a command armed when a history row replaces the query is disarmed", () => 
 test("leads are never armed; a click on a lead leaves the selection to the new query", () => {
   expect(alive({ armed: { id: old.expr, q: "=" }, sel: 0 }, onEq, "=")).toBeNull();
   expect(rowAt(0, [old, big], [app])).toBe(old);
+});
+
+test("a held ⌘N does nothing: not an edit, not a copy of the live row the first press made, not an item", () => {
+  const rep = (i: number): Event => ({ type: "nth", i, repeat: true });
+  for (const i of [0, 1, 2, 3]) expect(gq(idle(0), rep(i))).toEqual({ armed: null, sel: 0, run: null });
+  expect(gq(armedAt1, rep(1))).toEqual({ armed: null, sel: 1, run: null }); // not even an arming
+  // the first press edits; the repeat lands on the new query's live row and does not copy it
+  expect(gq(idle(0), { type: "nth", i: 0, repeat: false })).toEqual({ armed: null, sel: 0, run: null, query: "12*7+3" });
+  const after: Row[] = [{ kind: "result", text: "87" }, old, restart];
+  expect(step(idle(0), rep(0), (i) => after[i], "12*7+3")).toEqual({ armed: null, sel: 0, run: null });
 });

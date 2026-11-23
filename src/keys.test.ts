@@ -87,7 +87,7 @@ test("⌘1…⌘9 open that row, ⌘⇧digit is left to the system", () => {
   paletteKey(shot, a);
   expect(shot.preventDefault).not.toHaveBeenCalled();
   paletteKey(ev("9", false, 0, true, "Digit9"), a);
-  expect(sent(a, "nth")).toEqual([{ type: "nth", i: 0 }, { type: "nth", i: 8 }]);
+  expect(sent(a, "nth")).toEqual([{ type: "nth", i: 0, repeat: false }, { type: "nth", i: 8, repeat: false }]);
   expect(one.preventDefault).toHaveBeenCalled();
 });
 
@@ -105,7 +105,7 @@ test("a digit without ⌘ is typed, ⌘0 is not ours", () => {
 test("AZERTY: ⌘& is Digit1", () => {
   const a = actions();
   paletteKey(ev("&", false, 0, true, "Digit1"), a);
-  expect(sent(a, "nth")).toEqual([{ type: "nth", i: 0 }]);
+  expect(sent(a, "nth")).toEqual([{ type: "nth", i: 0, repeat: false }]);
 });
 
 test("⌘1 during IME composition belongs to the IME", () => {
@@ -113,4 +113,14 @@ test("⌘1 during IME composition belongs to the IME", () => {
   paletteKey(ev("1", true, 0, true, "Digit1"), a);
   paletteKey(ev("1", false, 229, true, "Digit1"), a);
   expect(sent(a, "nth")).toEqual([]);
+});
+
+test("a held ⌘N carries repeat, so the reducer can ignore it", () => {
+  const a = actions();
+  paletteKey(ev("1", false, 0, true, "Digit1"), a);
+  paletteKey(ev("1", false, 0, true, "Digit1", false, true), a);
+  expect(sent(a, "nth")).toEqual([
+    { type: "nth", i: 0, repeat: false },
+    { type: "nth", i: 0, repeat: true },
+  ]);
 });

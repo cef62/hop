@@ -178,7 +178,9 @@ test("a sum shows its answer, then history rows `expr = result` with the hint �
   expect(html.match(/role="option"/g)).toHaveLength(1 + history.length + rows.length);
   expect(html).toContain('<span class="name">12*7+3 = 87</span><span class="hint" aria-hidden="true">↵<span class="hint-label"> edit</span>');
   expect(html).toContain('<span class="name">2^64 = 1.84467440737e+19</span>');
-  expect(html).toContain('aria-label="12*7+3 equals 87, press Enter to edit it, Command Enter to insert the result"');
+  // under a complete sum there is no place for an insert: neither the label nor the footer offers it
+  expect(html).toContain('aria-label="12*7+3 equals 87, press Enter to edit it"');
+  expect(html).not.toContain("insert");
   // order: live row, history, items
   expect(html.indexOf("= 4<")).toBeLessThan(html.indexOf("12*7+3 = 87"));
   expect(html.indexOf("9/4 = 2.25")).toBeLessThan(html.indexOf("Finder"));
@@ -186,7 +188,7 @@ test("a sum shows its answer, then history rows `expr = result` with the hint �
   expect(html.match(/hint-label/g)).toHaveLength(1);
   // history rows draw a glyph, request no icon
   expect(html.match(/<img/g)).toHaveLength(rows.length);
-  expect(html).toContain('<span class="keys" aria-hidden="true">↵ edit · ⌘↵ insert · ⌘1–9 pick · esc close</span>');
+  expect(html).toContain('<span class="keys" aria-hidden="true">↵ edit · ⌘1–9 pick · esc close</span>');
   // ⌘ held: ⌘N over the combined rows, ⌘1 on the live row, ⌘2 on the first history row
   const held = view(1, true);
   expect(held).toMatch(/id="row-0"[^>]*>.*?⌘1<\/span>/);
@@ -197,6 +199,16 @@ test("a sum shows its answer, then history rows `expr = result` with the hint �
   expect(view(0)).toContain("<span class=\"hint-label\"> copy</span>");
   // an item selected: its own footer
   expect(view(1 + history.length)).toContain("↵ open · ⌘↵ reveal in Finder");
+});
+
+test("an open sum lists history rows alone, and `=` offers the insert", () => {
+  const view = (q: string, lead: Lead[]) => renderToStaticMarkup(<PaletteView style="compact" query={q} rows={[]} leads={lead} sel={0} error="" onQuery={() => {}} onOpen={() => {}} />);
+  const open = view("1+", leads("1+", null, history, true));
+  expect(open.match(/role="option"/g)).toHaveLength(3);
+  expect(open).not.toContain("Result ");
+  expect(open).toContain("↵ edit · ⌘↵ insert");
+  expect(open).toContain("Command Enter to insert the result");
+  expect(view("=", leads("=", null, history, true))).toContain("⌘↵ insert");
 });
 
 test("= lists the history alone, the first row selected; no entries: no list", () => {
@@ -237,5 +249,9 @@ test("history row keys are apart from item ids", () => {
 test("the footer names the selected row's keys", () => {
   expect(footer(undefined, null)).toContain("↵ open");
   expect(footer(answer("1"), null)).toBe("↵ copy · ⌘1–9 open · esc close");
-  expect(footer({ kind: "history", expr: "1+1", result: "2" }, null)).toBe("↵ edit · ⌘↵ insert · ⌘1–9 pick · esc close");
+  const past: Lead = { kind: "history", expr: "1+1", result: "2" };
+  expect(footer(past, null, "=")).toBe("↵ edit · ⌘↵ insert · ⌘1–9 pick · esc close");
+  expect(footer(past, null, "3+")).toBe("↵ edit · ⌘↵ insert · ⌘1–9 pick · esc close");
+  expect(footer(past, null, "3+4")).toBe("↵ edit · ⌘1–9 pick · esc close");
+  expect(footer(past, null)).toContain("⌘↵ insert"); // no query: an empty one
 });

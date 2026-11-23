@@ -3,7 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { calc } from "./calc";
 import { live, step, type Event, type State } from "./confirm";
-import { leads, rowAt, total, type Entry, type Lead, type Row } from "./leads";
+import { insertable, leads, rowAt, total, type Entry, type Lead, type Row } from "./leads";
 import { paletteKey, type Actions } from "./keys";
 import { move, prepare, search, type Frecency, type Item } from "./rank";
 
@@ -47,11 +47,11 @@ export function command(i: number, lead: Lead[], rows: Item[], reveal: boolean, 
 }
 
 /** The footer's keys for the selected row: only an app has a Finder location to reveal. */
-export const footer = (r: Row, armed: string | null | undefined) =>
+export const footer = (r: Row, armed: string | null | undefined, query = "") =>
   r?.kind === "result"
     ? "↵ copy · ⌘1–9 open · esc close"
     : r?.kind === "history"
-      ? "↵ edit · ⌘↵ insert · ⌘1–9 pick · esc close"
+      ? `↵ edit${insertable(query) ? " · ⌘↵ insert" : ""} · ⌘1–9 pick · esc close`
       : r?.confirm && r.id === armed
       ? "↵ confirm · esc close"
       : r?.kind === "command"
@@ -158,7 +158,7 @@ export function PaletteView({ style, query, rows, leads: lead = [], sel, armed, 
               </li>
             ) : (
               // an expression may repeat a pane or app id never: the "history:" prefix keeps the key space apart
-              <li key={`history:${l.expr}`} {...option(i)} aria-label={`${l.expr} equals ${l.result}, press Enter to edit it, Command Enter to insert the result`}>
+              <li key={`history:${l.expr}`} {...option(i)} aria-label={`${l.expr} equals ${l.result}, press Enter to edit it${insertable(query) ? ", Command Enter to insert the result" : ""}`}>
                 <span className="icon glyph" aria-hidden="true">
                   <svg viewBox="0 0 24 24">
                     <circle cx="12" cy="12" r="8" />
@@ -206,7 +206,7 @@ export function PaletteView({ style, query, rows, leads: lead = [], sel, armed, 
       </p>
       <div className="footer">
         <span className="keys" aria-hidden="true">
-          {footer(rowAt(sel, lead, rows), armed)}
+          {footer(rowAt(sel, lead, rows), armed, query)}
         </span>
         {update && (
           // not a Tab stop (the input keeps the focus): ⌘U is its key

@@ -1,4 +1,4 @@
-import { insert, isLead, type Row } from "./leads";
+import { insert, insertable, isLead, type Row } from "./leads";
 import type { Item } from "./rank";
 
 /**
@@ -16,8 +16,9 @@ export function press(armed: string | null, item: Item, plain: boolean): { armed
 export type State = { armed: { id: string; q: string } | null; sel: number };
 export type Event =
   | { type: "enter"; meta: boolean; repeat: boolean }
-  /** ⌘N, or a click on a row */
-  | { type: "nth" | "click"; i: number }
+  /** ⌘N (`repeat`: a held key's auto-repeat, which does nothing), or a click on a row */
+  | { type: "nth"; i: number; repeat?: boolean }
+  | { type: "click"; i: number }
   /** any other key, a pointer down, a new query, the palette hidden */
   | { type: "key" | "pointer" | "query" | "hidden" };
 
@@ -38,7 +39,8 @@ export type Out = State & {
 
 /** What an event does to the selection and the armed command, which row it runs (`run`, or null) and whether it
  * replaces the query (`query`); `q` is the current query.
- * Enter or ⌘N or a click on a history row replaces the query with its expression, ⌘Enter appends its result: the
+ * Enter or ⌘N or a click on a history row replaces the query with its expression, ⌘Enter inserts its result (`insert`
+ * in leads.ts; nothing when the query has no place for it): the
  * selection goes back to the first row and any armed command is disarmed, as for any query change. A held Enter's
  * repeats do nothing on a lead: the first press may have changed the query, and the repeat would land on its live row. */
 export function step(s: State, ev: Event, row: (i: number) => Row, q: string): Out {
@@ -48,7 +50,9 @@ export function step(s: State, ev: Event, row: (i: number) => Row, q: string): O
     if (r === undefined) return { armed: null, sel: s.sel, run: null };
     if (isLead(r)) {
       if (r.kind === "result") return { armed: null, sel: s.sel, run: i };
-      return { armed: null, sel: 0, run: null, query: meta ? insert(q, r.result) : r.expr };
+      if (!meta) return { armed: null, sel: 0, run: null, query: r.expr };
+      // an insert needs a place for the result: nowhere (a complete sum, a number) it does nothing
+      return insertable(q) ? { armed: null, sel: 0, run: null, query: insert(q, r.result) } : { armed: null, sel: s.sel, run: null };
     }
     const p = press(before, r, plain);
     if (p.run) return { armed: null, sel: s.sel, run: i };
@@ -62,7 +66,8 @@ export function step(s: State, ev: Event, row: (i: number) => Row, q: string): O
       return ev.meta ? act(s.sel, null, true, true) : act(s.sel, live(s, row, q), !ev.repeat);
     case "nth":
     case "click":
-      return act(ev.i, null, true);
+      // the first press may have changed the list under the held key: its repeat must not land on another row
+      return ev.type === "nth" && ev.repeat ? { armed: null, sel: s.sel, run: null } : act(ev.i, null, true);
     case "key":
     case "pointer":
       return { armed: null, sel: s.sel, run: null };

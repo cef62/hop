@@ -22,7 +22,7 @@ const keys = [
   ['⌘Enter', 'Reveal the selected app in Finder. On a System Settings section, open it.'],
   ['⌘1 … ⌘9', 'Open the Nth result directly. Hold ⌘ to see the numbers.'],
   ['Enter on a result', 'Copy the calculator’s answer and hide the palette.'],
-  ['Enter on a history row', 'Put that past sum in the field to edit. ⌘Enter adds its result to the end of the field.'],
+  ['Enter on a history row', 'Put that past sum in the field to edit. ⌘Enter inserts its result after an operator (1+), or in place of = or an empty field.'],
   ['Esc', 'Hide the palette and return to your app. Also closes Settings.'],
   ['⌘,', 'Open Settings from the palette.'],
   ['⌘U', 'Open What’s new when an update pill shows.'],
@@ -130,10 +130,10 @@ const keys = [
         </ul>
         <h3>History</h3>
         <ul>
-          <li>hop keeps the last 20 results you copied. Under a sum, the latest 5 show below its answer, as <code>expression = result</code>.</li>
+          <li>hop keeps the last 20 results you copied. Under a sum, the latest 5 show below its answer, as <code>expression = result</code>. <code>2+2</code> and <code>2 + 2</code> are one entry.</li>
           <li>Type <code>=</code> alone to see all 20.</li>
           <li><kbd>Enter</kbd> (or <kbd>⌘1</kbd> to <kbd>⌘9</kbd>, or a click) on a history row puts its expression in the field, so you can edit it. The palette stays open.</li>
-          <li><kbd>⌘Enter</kbd> adds its result to the end of what you typed. Type an operator first: after <code>12</code> it makes <code>12</code> followed by the result's digits, and after <code>1+</code> it completes the sum.</li>
+          <li><kbd>⌘Enter</kbd> inserts its result. After an operator, <code>1+</code> becomes <code>1+87</code> (a sum that waits for its last number lists history too). On <code>=</code> or an empty field, the result replaces it. Under a complete sum or a number there is no place for it, so <kbd>⌘Enter</kbd> does nothing and the palette does not offer it.</li>
           <li>Only a copy is kept, and a sum you copy again moves to the top.</li>
           <li>To turn the answer and the history off, turn off <strong>Calculator</strong> in Settings. <code>=</code> then searches like any other text.</li>
         </ul>
