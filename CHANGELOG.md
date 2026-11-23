@@ -1,5 +1,13 @@
 # hop
 
+## 0.3.0
+
+### Minor Changes
+
+- c65ebd3: Added calculator history: your last results show under a sum, type = to see them all, Enter edits one and ⌘Enter inserts its result.
+- e44f2dd: Added System Settings sections to search: type a section's name, such as Privacy, to open it.
+- df92ccc: Added system commands to search: Lock Screen, Sleep, Restart, Shut Down, Log Out and Empty Trash; the last four ask for a second Enter.
+
 ## 0.2.0
 
 ### Minor Changes
