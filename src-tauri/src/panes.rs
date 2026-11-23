@@ -86,6 +86,7 @@ mod mac {
         let alias: &[&str] = match (base, parts.get(1).copied()) {
             ("zh", Some("Hant")) => &["zh_TW", "zh_HK"],
             ("es", Some(r)) if r != "ES" => &["es_419"],
+            ("nb" | "nn", _) => &["no"], // the loctables key Norwegian as `no`
             _ => &[],
         };
         let mut keys: Vec<String> = loc.allKeys().iter().filter_map(|k| Some(k.downcast::<NSString>().ok()?.to_string())).collect();
@@ -297,6 +298,15 @@ mod tests {
     }
 
     #[test]
+    fn norwegian_bokmal_and_nynorsk_read_the_no_names() {
+        let tmp = tempfile::tempdir().unwrap();
+        appex(tmp.path(), "k", UI, Some(true), &[("en", "Keyboard"), ("no", "Tastatur")]);
+        let first = |l: &str| scan(tmp.path(), &langs(&[l])).into_iter().map(|i| i.name).collect::<Vec<_>>();
+        assert_eq!(first("nb-NO"), ["Tastatur"]);
+        assert_eq!(first("nn"), ["Tastatur"]);
+    }
+
+    #[test]
     fn a_section_reached_twice_is_kept_once() {
         let tmp = tempfile::tempdir().unwrap();
         appex(tmp.path(), PRIVACY, UI, Some(true), PRIVACY_NAMES);
@@ -340,6 +350,9 @@ mod tests {
         // Bluetooth's name is its executable's too, and is a real name
         appex(tmp.path(), "com.apple.BluetoothSettings", UI, Some(true), &[("en_GB", "Bluetooth"), ("it", "Bluetooth")]);
         patch(tmp.path(), "com.apple.BluetoothSettings", "info", "<key>CFBundleExecutable</key><string>Bluetooth</string>");
+        // any other target name repeated as the name is dropped too, not only Headphones'
+        appex(tmp.path(), "com.apple.TrackpadSettings", UI, Some(true), &[("en", "TrackpadSettingsExtension")]);
+        patch(tmp.path(), "com.apple.TrackpadSettings", "info", "<key>CFBundleExecutable</key><string>TrackpadSettingsExtension</string>");
         // a name ending in "Extension" that is not the executable stays
         appex(tmp.path(), "x", UI, Some(true), &[("en", "Some Extension")]);
         patch(tmp.path(), "x", "info", "<key>CFBundleExecutable</key><string>XSettingsExtension</string>");
