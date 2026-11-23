@@ -153,11 +153,13 @@ static SCANNING: Mutex<()> = Mutex::new(());
 fn refresh(app: &AppHandle) {
     let _one = SCANNING.lock().unwrap();
     let s = crate::settings::current(app);
-    let apps = without_ignored(index(&roots(&s.extra_folders)), &s.ignored_apps);
+    // the ignore list is for apps: ignoring System Settings leaves its sections in
+    let mut items = without_ignored(index(&roots(&s.extra_folders)), &s.ignored_apps);
+    items.extend(crate::panes::index());
     let snapshot = {
         let state = app.state::<Mutex<Index>>();
         let mut idx = state.lock().unwrap();
-        *idx = Index { generation: idx.generation + 1, items: apps };
+        *idx = Index { generation: idx.generation + 1, items };
         idx.clone()
     };
     app.emit_to("main", "apps-changed", snapshot).ok();

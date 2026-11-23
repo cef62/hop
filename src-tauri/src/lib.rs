@@ -8,6 +8,7 @@ mod icons;
 mod launch;
 mod login;
 mod panel;
+mod panes;
 mod settings;
 mod update;
 mod whatsnew;
