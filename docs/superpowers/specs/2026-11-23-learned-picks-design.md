@@ -27,3 +27,11 @@ On another laptop the owner types "me", and hop lists Messages first and the Chr
 - Lock Screen / Sleep learned for a short query: first row, one Enter runs it — accepted (the owner typed and chose it before), but never on the empty query.
 - Store growth and decay; corrupt file; concurrent writes with `history.json`.
 - Performance: `search` still within the existing perf test budget with 500 keys.
+
+## Deviations (implementation)
+
+- The frontend sends the folded, trimmed, 30-character-capped query in `run` (`pickKey` in `src/rank.ts`, an optional `query` argument); Rust only trims and caps by characters again and never folds.
+- Ranking adds `10 + 100 * boost(pickScore)` to the usual score instead of a separate sort: picked items come first, ordered by pick score (a clear pick-score gap beats a tier gap; near-equal scores fall back to tier).
+- `search` takes `picks` as its 4th argument; `limit` moved to the 5th.
+- `record_pick` also prunes, so memory stays bounded between saves; `save` prunes again to drop what decayed meanwhile.
+- Reveal records no pick because it records no use (`Open.record`); ⌘Enter on a section is a use and does teach a pick.

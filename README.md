@@ -17,7 +17,8 @@ hop has no Dock icon: press **⌥Space** (the default hotkey) or click its menu-
 
 - **⌥Space** shows the palette over any app, on the screen under the mouse; press it again to hide.
 - Type to find an app by name, by its English file name, or by initials (`vsc` finds Visual Studio Code). Apps you
-  open often rank higher; with nothing typed, the palette lists them. **↑↓** select, **Enter** opens,
+  open often rank higher, and hop learns which result you pick for what you type: pick the second result for `me` and
+  it comes first the next time you type `me`, `mee` or `meet`. With nothing typed, the palette lists the apps you use most. **↑↓** select, **Enter** opens,
   **⌘Enter** reveals the app in Finder. **⌘1**–**⌘9** open the Nth result directly (hold **⌘** to see the
   numbers).
 - System Settings sections: type a section's name, such as `privacy` or `storage`, and **Enter** opens System
