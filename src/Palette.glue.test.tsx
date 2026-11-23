@@ -15,7 +15,8 @@ vi.mock("@tauri-apps/api/core", () => ({
   convertFileSrc: (p: string, s: string) => `${s}://localhost/${encodeURIComponent(p)}`,
   invoke: (cmd: string, args?: Record<string, unknown>) => {
     bridge.calls.push([cmd, args]);
-    return Promise.resolve(bridge.replies[cmd]);
+    const r = bridge.replies[cmd];
+    return r instanceof Error ? Promise.reject(r) : Promise.resolve(r);
   },
 }));
 vi.mock("@tauri-apps/api/event", () => ({
@@ -245,4 +246,60 @@ test("⌘ down shows the ⌘N hints, keyup and window blur clear them", async ()
   await down("Meta");
   await act(() => void window.dispatchEvent(new Event("blur")));
   expect(hints()).toEqual(["↵ open"]);
+});
+
+const message = () => host.querySelector("p.message")?.textContent ?? null;
+
+test("palette-shown with calculator off hides the result row and never copies; the next show restores it", async () => {
+  await mount();
+  await emit("palette-shown", { ...look, calculator: false });
+  await type("2+2");
+  expect(rows()).toEqual([]);
+  await down("Enter");
+  expect(called("copy_text")).toEqual([]);
+  await emit("palette-shown", { ...look, calculator: true });
+  expect(rows()).toEqual(["== 4↵ copy"]);
+  await down("Enter");
+  expect(called("copy_text")).toHaveLength(1);
+});
+
+test("palette-hidden carries the calculator switch too", async () => {
+  await mount();
+  await emit("palette-hidden", { ...look, calculator: false });
+  await type("2+2");
+  expect(rows()).toEqual([]);
+  await emit("palette-hidden", { ...look, calculator: true });
+  await type("2+2");
+  expect(rows()).toEqual(["== 4↵ copy"]);
+});
+
+test("a rejected run shows its message, typing clears it", async () => {
+  await mount({ run: new Error("boom") });
+  await type("saf");
+  await down("Enter");
+  await settle();
+  expect(message()).toBe("Error: boom");
+  await type("safa");
+  expect(message()).toBeNull();
+});
+
+test("a pending update shows the pill and ⌘U opens What's new; with none ⌘U does nothing", async () => {
+  await mount();
+  await down("u", { metaKey: true });
+  expect(called("open_whatsnew")).toEqual([]);
+  expect(host.querySelector(".pill")).toBeNull();
+  await emit("palette-shown", { ...look, update: "0.9.0" });
+  expect(host.querySelector(".pill")!.textContent).toContain("Update to 0.9.0");
+  await down("u", { metaKey: true });
+  expect(called("open_whatsnew")).toHaveLength(1);
+});
+
+test("picks and calc_history rejecting leave the palette listing and ranking items", async () => {
+  await mount({ picks: new Error("no picks"), calc_history: new Error("no history") });
+  await emit("palette-shown");
+  await settle();
+  await type("ma");
+  expect(rows().map((r) => r.replace("↵ open", ""))).toEqual(["Mail", "Maps"]);
+  await type("=");
+  expect(rows()).toEqual([]);
 });

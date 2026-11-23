@@ -7,10 +7,11 @@ import { SettingsPage, type View } from "./Settings";
 
 const bridge = vi.hoisted(() => ({ calls: [] as [string, Record<string, unknown> | undefined][], view: null as unknown }));
 vi.mock("@tauri-apps/api/core", () => ({
-  invoke: (cmd: string, args?: { patch?: object }) => {
+  invoke: (cmd: string, args?: { patch?: object; enabled?: boolean }) => {
     bridge.calls.push([cmd, args]);
     let v = bridge.view as View;
     if (cmd === "set_settings") bridge.view = v = { ...v, settings: { ...v.settings, ...args!.patch } };
+    if (cmd === "set_login") return Promise.resolve(((bridge.view = { ...v, login: args!.enabled }), true));
     return Promise.resolve(v);
   },
 }));
@@ -37,5 +38,11 @@ test("the System commands and Calculator switches save their own key with the ne
   await flip("Calculator");
   await flip("System commands");
   expect(patches()).toEqual([{ patch: { systemCommands: false } }, { patch: { calculator: false } }, { patch: { systemCommands: true } }]);
+  await flip("Check every day");
+  await flip("Check every day");
+  expect(patches().slice(3)).toEqual([{ patch: { dailyUpdateCheck: false } }, { patch: { dailyUpdateCheck: true } }]);
+  await flip("Start at login");
+  await flip("Start at login");
+  expect(bridge.calls.filter(([c]) => c === "set_login")).toEqual([["set_login", { enabled: true }], ["set_login", { enabled: false }]]);
   act(() => root.unmount());
 });
