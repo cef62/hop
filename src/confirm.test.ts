@@ -161,6 +161,12 @@ test("a held Enter does nothing on a lead: not an edit, not a copy, not the live
   expect(step({ armed: first.armed, sel: first.sel }, { ...enter, repeat: true }, (i) => after[i], first.query!).run).toBeNull();
 });
 
+test("a held key never acts: after an insert the repeat does not open the item the new query found", () => {
+  const app: Row = { kind: "app", id: "/Applications/Calculator.app", name: "Calculator", altNames: [], path: "/Applications/Calculator.app" };
+  // `=` then ⌘Enter made the query "87"; the held key's repeat lands on an item row, not a lead
+  for (const meta of [true, false]) expect(step(idle(0), { ...enter, repeat: true, meta }, () => app, "87")).toEqual({ armed: null, sel: 0, run: null });
+});
+
 test("a command armed when a history row replaces the query is disarmed", () => {
   const armedUnderEq: State = { armed: { id: restart.id, q: "=" }, sel: 2 };
   expect(alive(armedUnderEq, onEq, "=")).toBe(restart.id);

@@ -61,9 +61,10 @@ export function step(s: State, ev: Event, row: (i: number) => Row, q: string): O
   };
   switch (ev.type) {
     case "enter":
-      if (ev.repeat && isLead(row(s.sel))) return { armed: null, sel: s.sel, run: null };
-      // ⌘Enter, like ⌘N, can arm a command but never confirm one; a held Enter's repeats only disarm
-      return ev.meta ? act(s.sel, null, true, true) : act(s.sel, live(s, row, q), !ev.repeat);
+      // a held key acts once: the first press may have changed the query and the list under it, so a repeat only disarms
+      if (ev.repeat) return { armed: null, sel: s.sel, run: null };
+      // ⌘Enter, like ⌘N, can arm a command but never confirm one
+      return ev.meta ? act(s.sel, null, true, true) : act(s.sel, live(s, row, q), true);
     case "nth":
     case "click":
       // the first press may have changed the list under the held key: its repeat must not land on another row
