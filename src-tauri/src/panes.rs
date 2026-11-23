@@ -22,8 +22,10 @@ pub fn scan(root: &Path, langs: &[String]) -> Vec<Item> {
     let Ok(entries) = std::fs::read_dir(root) else { return Vec::new() };
     let mut dirs: Vec<_> = entries.filter_map(|e| e.ok()).map(|e| e.path()).filter(|p| p.extension().is_some_and(|e| e == "appex")).collect();
     dirs.sort();
+    // one row per id (a linked bundle would give two rows with the same React key)
+    let mut seen = std::collections::HashSet::new();
     // a worker thread has no autorelease pool of its own
-    objc2::rc::autoreleasepool(|_| dirs.iter().filter_map(|d| mac::section(d, langs)).collect())
+    objc2::rc::autoreleasepool(|_| dirs.iter().filter_map(|d| mac::section(d, langs)).filter(|i| seen.insert(i.id.clone())).collect())
 }
 
 /// Scanned on the first call (the index's first refresh, off the main thread), then reused.
@@ -76,14 +78,22 @@ mod mac {
     }
 
     /// String `key` of a loctable for a preferred language: the exact region (`it-IT` → `it_IT`, `zh-Hant-TW` →
-    /// `zh_TW`), the bare language, then any region of it (some loctables have `en_GB` but no `en`).
+    /// `zh_TW`), the region the loctables use for a script or for Latin America, the bare language, then any region of
+    /// it (some loctables have `en_GB` but no `en`).
     fn localized(loc: &NSDictionary, lang: &str, key: &str) -> Option<String> {
-        let mut parts = lang.split('-');
-        let base = parts.next()?;
+        let parts: Vec<&str> = lang.split('-').collect();
+        let base = parts[0];
+        let alias: &[&str] = match (base, parts.get(1).copied()) {
+            ("zh", Some("Hant")) => &["zh_TW", "zh_HK"],
+            ("zh", Some("Hans")) => &["zh_CN"],
+            ("es", Some(r)) if r != "ES" => &["es_419"],
+            _ => &[],
+        };
         let mut keys: Vec<String> = loc.allKeys().iter().filter_map(|k| Some(k.downcast::<NSString>().ok()?.to_string())).collect();
         keys.sort(); // the same region wins on every scan
         let regions = keys.into_iter().filter(|k| k.strip_prefix(base).is_some_and(|r| r.starts_with('_')));
-        let tries = parts.last().map(|r| format!("{base}_{r}")).into_iter().chain([base.to_string()]).chain(regions);
+        let exact = parts.last().filter(|_| parts.len() > 1).map(|r| format!("{base}_{r}"));
+        let tries = exact.into_iter().chain(alias.iter().map(|a| a.to_string())).chain([base.to_string()]).chain(regions);
         tries.into_iter().find_map(|k| dict(loc, &k).and_then(|d| string(&d, key)))
     }
 
@@ -255,7 +265,8 @@ mod tests {
         // the exact region wins over the bare language
         appex(tmp.path(), "a", UI, Some(true), &[("en", "Sound"), ("pt", "Som"), ("pt_PT", "Som PT")]);
         // Storage on macOS 27 has no `en`, only `en_AU`, `en_GB`…: any region of the language stands in
-        appex(tmp.path(), "b", UI, Some(true), &[("en_AU", "Storage"), ("en_GB", "Storage"), ("it", "Spazio")]);
+        // …the first in key order, on every scan
+        appex(tmp.path(), "b", UI, Some(true), &[("en_GB", "Storage GB"), ("en_AU", "Storage"), ("it", "Spazio")]);
         // a language the loctable lacks: English only
         appex(tmp.path(), "c", UI, Some(true), &[("en", "Keyboard")]);
         // `zh-Hant-TW` looks up `zh_TW`, not the first Chinese region
@@ -268,6 +279,30 @@ mod tests {
         assert_eq!(found(&["en-US", "it-IT"])[1], (s("Storage"), vec![s("Spazio")]));
         assert_eq!(found(&["it-IT", "en-US"])[1], (s("Spazio"), vec![s("Storage")]));
         assert_eq!(found(&["zh-Hant-TW"])[3], (s("顯示器"), vec![s("Displays")]));
+    }
+
+    #[test]
+    fn scripts_and_latin_america_map_to_the_loctable_regions() {
+        let tmp = tempfile::tempdir().unwrap();
+        appex(tmp.path(), "d", UI, Some(true), &[("en", "Displays"), ("zh_CN", "显示器"), ("zh_HK", "顯示器 HK"), ("zh_TW", "顯示器")]);
+        appex(tmp.path(), "s", UI, Some(true), &[("en", "Sound"), ("es", "Sonido"), ("es_419", "Sonido LA")]);
+        let first = |l: &str| scan(tmp.path(), &langs(&[l])).into_iter().map(|i| i.name).collect::<Vec<_>>();
+        assert_eq!(first("zh-Hant"), ["顯示器", "Sound"]);
+        assert_eq!(first("zh-Hant-US"), ["顯示器", "Sound"]);
+        assert_eq!(first("zh-Hant-HK"), ["顯示器 HK", "Sound"]);
+        assert_eq!(first("zh-Hans"), ["显示器", "Sound"]);
+        assert_eq!(first("zh-Hans-SG"), ["显示器", "Sound"]);
+        assert_eq!(first("es-MX"), ["Displays", "Sonido LA"]);
+        assert_eq!(first("es-ES"), ["Displays", "Sonido"]);
+        assert_eq!(first("es"), ["Displays", "Sonido"]);
+    }
+
+    #[test]
+    fn a_section_reached_twice_is_kept_once() {
+        let tmp = tempfile::tempdir().unwrap();
+        appex(tmp.path(), PRIVACY, UI, Some(true), PRIVACY_NAMES);
+        std::os::unix::fs::symlink(tmp.path().join(format!("{PRIVACY}.appex")), tmp.path().join("z.appex")).unwrap();
+        assert_eq!(scan(tmp.path(), &langs(&["en"])).len(), 1);
     }
 
     #[test]
