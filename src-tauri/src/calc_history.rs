@@ -7,6 +7,8 @@ use std::sync::Mutex;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 
+/// In the app data dir, next to the launch history (`history::FILE`), which it must never overwrite.
+pub const FILE: &str = "calc_history.json";
 /// Stored entries.
 pub const KEEP: usize = 20;
 /// Longest expression kept: the palette's calculator takes no more (`calc.ts`), so a longer one is never a sum.
@@ -22,14 +24,21 @@ fn valid(e: &Entry) -> bool {
     !e.expr.trim().is_empty() && e.expr.chars().count() <= MAX_CHARS && !e.result.is_empty()
 }
 
+/// An expression without its whitespace: `2+2` and `2 + 2` are one sum.
+fn bare(expr: &str) -> String {
+    expr.split_whitespace().collect()
+}
+
 /// The entry for a copied `result` of `expr`, or none when it is not a plausible sum.
 fn entry(expr: &str, result: &str) -> Option<Entry> {
     Some(Entry { expr: expr.trim().into(), result: result.into() }).filter(valid)
 }
 
-/// `e` first; an earlier entry with the same expression is replaced, not repeated.
+/// `e` first; an earlier entry with the same expression (whitespace aside) is replaced, not repeated: the latest
+/// spacing is the one kept.
 pub fn record(list: &mut Vec<Entry>, e: Entry) {
-    list.retain(|x| x.expr != e.expr);
+    let key = bare(&e.expr);
+    list.retain(|x| bare(&x.expr) != key);
     list.insert(0, e);
     list.truncate(KEEP);
 }
@@ -40,7 +49,7 @@ pub fn load(file: &Path) -> Vec<Entry> {
     list.retain(valid);
     // a hand-edited file: the first (newest) of a repeated expression stays, as `record` would have it
     let mut seen = std::collections::HashSet::new();
-    list.retain(|e| seen.insert(e.expr.clone()));
+    list.retain(|e| seen.insert(bare(&e.expr)));
     list.truncate(KEEP);
     list
 }
@@ -61,23 +70,25 @@ pub struct Store {
 }
 
 pub fn setup(app: &AppHandle) {
-    let file = app.path().app_data_dir().ok().map(|d| d.join("calc_history.json"));
+    let file = app.path().app_data_dir().ok().map(|d| d.join(FILE));
     let list = file.as_deref().map(load).unwrap_or_default();
     app.manage(Mutex::new(Store { list, file }));
 }
 
 /// Records a copied result. An entry that is not a plausible sum is dropped; a failed save is logged and the entry
 /// stays in memory, so the copy that triggered it never fails.
-pub fn push(app: &AppHandle, expr: &str, result: &str) {
+pub fn push_to(store: &mut Store, expr: &str, result: &str) {
     let Some(e) = entry(expr, result) else { return };
-    let state = app.state::<Mutex<Store>>();
-    let mut s = state.lock().unwrap();
-    record(&mut s.list, e);
-    if let Some(f) = &s.file
-        && let Err(err) = save(f, &s.list)
+    record(&mut store.list, e);
+    if let Some(f) = &store.file
+        && let Err(err) = save(f, &store.list)
     {
         eprintln!("hop: could not save {} ({err})", f.display());
     }
+}
+
+pub fn push(app: &AppHandle, expr: &str, result: &str) {
+    push_to(&mut app.state::<Mutex<Store>>().lock().unwrap(), expr, result);
 }
 
 /// For the palette's history rows.
@@ -136,6 +147,41 @@ mod tests {
         assert_eq!(load(&file)[0].expr, "0+1");
         save(&file, &[e("1+1"), e("2+2"), Entry { expr: "1+1".into(), result: "9".into() }]).unwrap();
         assert_eq!(load(&file), [e("1+1"), e("2+2")]);
+    }
+
+    #[test]
+    fn whitespace_variants_are_one_entry_and_the_latest_spacing_wins() {
+        let mut l = vec![];
+        record(&mut l, e("2+2"));
+        record(&mut l, e("3+3"));
+        record(&mut l, e("2 + 2"));
+        assert_eq!(l.iter().map(|x| x.expr.as_str()).collect::<Vec<_>>(), ["2 + 2", "3+3"]);
+        let tmp = tempfile::tempdir().unwrap();
+        let file = tmp.path().join(FILE);
+        save(&file, &[e("2 + 2"), e("3+3"), e("2+2"), e("2\t+ 2")]).unwrap();
+        assert_eq!(load(&file), [e("2 + 2"), e("3+3")]);
+    }
+
+    #[test]
+    fn push_saves_the_file_a_restart_reads_back() {
+        let tmp = tempfile::tempdir().unwrap();
+        let file = tmp.path().join(FILE);
+        let mut store = Store { list: vec![], file: Some(file.clone()) };
+        push_to(&mut store, " 2+2 ", "4");
+        push_to(&mut store, "", "4"); // not plausible: nothing
+        assert_eq!(load(&file), [Entry { expr: "2+2".into(), result: "4".into() }]);
+        assert_eq!(store.list.len(), 1);
+        // an unwritable place does not lose the entry in memory, and does not panic
+        let blocked = tmp.path().join(FILE).join("sub/x.json"); // its parent is a file
+        let mut store = Store { list: vec![], file: Some(blocked) };
+        push_to(&mut store, "1+1", "2");
+        assert_eq!(store.list.len(), 1);
+    }
+
+    #[test]
+    fn the_file_is_not_the_launch_history() {
+        assert_eq!(FILE, "calc_history.json");
+        assert_ne!(FILE, crate::history::FILE);
     }
 
     #[test]
