@@ -208,6 +208,15 @@ pub fn hide_for_window(app: &AppHandle) {
     apply(app, true, Visibility::hide);
 }
 
+/// Runs `f` on the main thread and waits for it: AppKit calls from an async command's worker thread. Never call it from
+/// the main thread, which would wait on itself. `None`: the event loop is gone (hop is quitting).
+pub fn on_main<R: Send + 'static>(app: &AppHandle, f: impl FnOnce(&AppHandle) -> R + Send + 'static) -> Option<R> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    let a = app.clone();
+    app.run_on_main_thread(move || drop(tx.send(f(&a)))).ok()?;
+    rx.recv().ok()
+}
+
 #[tauri::command]
 pub fn hide_palette(app: AppHandle) {
     hide(&app);

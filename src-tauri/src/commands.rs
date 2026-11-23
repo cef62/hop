@@ -33,72 +33,122 @@ pub fn items() -> Vec<Item> {
         .collect()
 }
 
-const LOGINWINDOW: &str = "com.apple.loginwindow";
+/// An Apple Event a command sends.
+#[derive(Debug, PartialEq)]
+pub struct Event {
+    pub class: &'static [u8; 4],
+    pub id: &'static [u8; 4],
+    /// the bundle id it goes to, and that app's name in errors
+    pub target: &'static str,
+    pub app: &'static str,
+    /// what the palette says when the send fails for another reason
+    pub fail: &'static str,
+}
 
 /// How a command runs.
 #[derive(Debug, PartialEq)]
 enum How {
     Lock,
     Sleep,
-    /// An Apple Event: class, id, the target's bundle id, and what the palette says when it cannot be sent.
-    Event(&'static [u8; 4], &'static [u8; 4], &'static str, &'static str),
+    Send(Event),
 }
 
 fn how(id: &str) -> Option<How> {
+    let login = |id, fail| How::Send(Event { class: b"aevt", id, target: "com.apple.loginwindow", app: "loginwindow", fail });
     Some(match id {
         "cmd:lock" => How::Lock,
         "cmd:sleep" => How::Sleep,
         // kAERestart, kAEShutDown: loginwindow still lets apps with unsaved work cancel
-        "cmd:restart" => How::Event(b"aevt", b"rest", LOGINWINDOW, "Could not restart"),
-        "cmd:shutdown" => How::Event(b"aevt", b"shut", LOGINWINDOW, "Could not shut down"),
+        "cmd:restart" => login(b"rest", "Could not restart"),
+        "cmd:shutdown" => login(b"shut", "Could not shut down"),
         // kAEReallyLogOut, the form without the macOS "Are you sure" dialog: the palette already asked
-        "cmd:logout" => How::Event(b"aevt", b"rlgo", LOGINWINDOW, "Could not log out"),
-        "cmd:empty-trash" => How::Event(b"fndr", b"empt", "com.apple.finder", "Could not empty the Trash"),
+        "cmd:logout" => login(b"rlgo", "Could not log out"),
+        "cmd:empty-trash" => How::Send(Event { class: b"fndr", id: b"empt", target: "com.apple.finder", app: "Finder", fail: "Could not empty the Trash" }),
         _ => return None,
     })
 }
 
-/// errAEEventNotPermitted: the user turned hop off in Privacy & Security › Automation, or declined the prompt.
-const NOT_PERMITTED: isize = -1743;
-
-/// The palette's error for a send that failed with `code`.
-fn send_error(fail: &str, code: isize) -> String {
-    if code == NOT_PERMITTED {
-        format!("{fail}: allow hop in System Settings › Privacy & Security › Automation")
-    } else {
-        format!("{fail} (error {code})")
+/// The palette's error for a send that failed with OSStatus `code`.
+fn send_error(e: &Event, code: isize) -> String {
+    match code {
+        // errAEEventNotPermitted: hop is off under Automation, or the user declined the prompt
+        -1743 => format!("hop is not allowed to control {} — allow it in System Settings › Privacy & Security › Automation", e.app),
+        // procNotFound
+        -600 => format!("{} is not running", e.app),
+        _ => format!("{} (error {code})", e.fail),
     }
 }
 
+/// What `exec` does to the system, kept apart so a test can check the order without doing any of it.
+pub trait Effects {
+    fn hide(&mut self);
+    /// Whether the lock call is there (a macOS release could drop the private symbol).
+    fn can_lock(&mut self) -> bool;
+    fn lock(&mut self);
+    fn sleep(&mut self) -> std::io::Result<()>;
+    /// Err: the OSStatus.
+    fn send(&mut self, e: &Event) -> Result<(), isize>;
+}
+
 /// Runs command `id`. Lock Screen and Sleep hide the palette first (it must not be up on the lock screen or after
-/// waking); the Apple Events hide it only once sent, so a failure stays on screen with its error.
-pub fn exec(app: &AppHandle, id: &str) -> Result<(), String> {
+/// waking), but Lock checks its symbol before that, so a failure stays on screen with its error; the Apple Events hide
+/// it only once sent, for the same reason.
+pub fn exec(id: &str, fx: &mut impl Effects) -> Result<(), String> {
     match how(id).ok_or("Not something hop knows")? {
         How::Lock => {
-            let lock = mac::locker().ok_or("Could not lock the screen")?;
-            crate::panel::hide(app);
-            lock();
+            if !fx.can_lock() {
+                return Err("Could not lock the screen".into());
+            }
+            fx.hide();
+            fx.lock();
         }
         How::Sleep => {
-            crate::panel::hide(app);
-            let mut child = std::process::Command::new("/usr/bin/pmset").arg("sleepnow").spawn().map_err(|e| {
+            fx.hide();
+            fx.sleep().map_err(|e| {
                 eprintln!("hop: could not run pmset ({e})");
                 "Could not put the Mac to sleep".to_string()
             })?;
-            std::thread::spawn(move || match child.wait() {
-                Ok(s) if s.success() => {}
-                other => eprintln!("hop: pmset sleepnow failed ({other:?})"),
-            });
         }
-        How::Event(class, event, target, fail) => {
-            mac::send(class, event, target).map_err(|code| {
-                eprintln!("hop: Apple Event {id} to {target} failed ({code})");
-                send_error(fail, code)
+        How::Send(e) => {
+            fx.send(&e).map_err(|code| {
+                eprintln!("hop: Apple Event {id} to {} failed ({code})", e.target);
+                send_error(&e, code)
             })?;
-            crate::panel::hide(app);
+            fx.hide();
         }
     }
     Ok(())
+}
+
+/// The real effects, from `run`'s worker thread: the palette and the lock call go to the main thread, the Apple Event
+/// is sent from here, so a first-use Automation prompt never freezes hop.
+pub struct System(pub AppHandle);
+
+impl Effects for System {
+    fn hide(&mut self) {
+        crate::panel::on_main(&self.0, crate::panel::hide);
+    }
+
+    fn can_lock(&mut self) -> bool {
+        mac::locker().is_some()
+    }
+
+    fn lock(&mut self) {
+        crate::panel::on_main(&self.0, |_| mac::locker().map(|lock| lock()));
+    }
+
+    fn sleep(&mut self) -> std::io::Result<()> {
+        let mut child = std::process::Command::new("/usr/bin/pmset").arg("sleepnow").spawn()?;
+        std::thread::spawn(move || match child.wait() {
+            Ok(s) if s.success() => {}
+            other => eprintln!("hop: pmset sleepnow failed ({other:?})"),
+        });
+        Ok(())
+    }
+
+    fn send(&mut self, e: &Event) -> Result<(), isize> {
+        mac::send(e.class, e.id, e.target)
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -115,7 +165,7 @@ mod mac {
 
     /// `SACLockScreenImmediate` from the private login framework (what the Lock Screen menu item calls, stable since
     /// macOS 10.13), loaded at use. `None` when a macOS release drops it.
-    pub fn locker() -> Option<impl FnOnce()> {
+    pub fn locker() -> Option<impl FnOnce() + Send> {
         // SAFETY: NUL-terminated literals; dlopen of a system framework (served from the dyld shared cache) and dlsym
         // have no other preconditions, and a null result is checked
         let sym = unsafe {
@@ -150,7 +200,8 @@ mod mac {
     }
 
     /// Sends without waiting for a reply (emptying a large Trash replies only when done); a refused send, such as one
-    /// the user did not allow under Automation, still fails here. Err: the OSStatus.
+    /// the user did not allow under Automation, still fails here. Blocks while macOS shows the Automation prompt.
+    /// Err: the OSStatus.
     pub fn send(class: &[u8; 4], id: &[u8; 4], target: &str) -> Result<(), isize> {
         // SAFETY: an immutable Foundation constant
         let timeout = unsafe { objc2_foundation::NSAppleEventTimeOutDefault };
@@ -187,14 +238,25 @@ mod tests {
         ]);
     }
 
+    fn event(id: &str) -> Event {
+        match how(id) {
+            Some(How::Send(e)) => e,
+            other => panic!("{id}: {other:?}"),
+        }
+    }
+
     #[test]
     fn each_command_runs_its_own_way_and_nothing_else_runs() {
         assert_eq!(how("cmd:lock"), Some(How::Lock));
         assert_eq!(how("cmd:sleep"), Some(How::Sleep));
-        assert_eq!(how("cmd:restart"), Some(How::Event(b"aevt", b"rest", "com.apple.loginwindow", "Could not restart")));
-        assert_eq!(how("cmd:shutdown"), Some(How::Event(b"aevt", b"shut", "com.apple.loginwindow", "Could not shut down")));
-        assert_eq!(how("cmd:logout"), Some(How::Event(b"aevt", b"rlgo", "com.apple.loginwindow", "Could not log out")));
-        assert_eq!(how("cmd:empty-trash"), Some(How::Event(b"fndr", b"empt", "com.apple.finder", "Could not empty the Trash")));
+        let codes = |id: &str| {
+            let e = event(id);
+            (e.class, e.id, e.target, e.app, e.fail)
+        };
+        assert_eq!(codes("cmd:restart"), (b"aevt", b"rest", "com.apple.loginwindow", "loginwindow", "Could not restart"));
+        assert_eq!(codes("cmd:shutdown"), (b"aevt", b"shut", "com.apple.loginwindow", "loginwindow", "Could not shut down"));
+        assert_eq!(codes("cmd:logout"), (b"aevt", b"rlgo", "com.apple.loginwindow", "loginwindow", "Could not log out"));
+        assert_eq!(codes("cmd:empty-trash"), (b"fndr", b"empt", "com.apple.finder", "Finder", "Could not empty the Trash"));
         for id in ["cmd:", "cmd:reboot", "lock", "/Applications/X.app", "pane:com.apple.settings.Storage", ""] {
             assert_eq!(how(id), None, "{id}");
         }
@@ -203,9 +265,63 @@ mod tests {
     }
 
     #[test]
-    fn a_refused_send_says_where_to_allow_it() {
-        assert_eq!(send_error("Could not empty the Trash", -1743), "Could not empty the Trash: allow hop in System Settings › Privacy & Security › Automation");
-        assert_eq!(send_error("Could not restart", -600), "Could not restart (error -600)");
+    fn a_failed_send_reads_as_what_to_do() {
+        let trash = event("cmd:empty-trash");
+        assert_eq!(send_error(&trash, -1743), "hop is not allowed to control Finder — allow it in System Settings › Privacy & Security › Automation");
+        assert_eq!(send_error(&trash, -600), "Finder is not running");
+        assert_eq!(send_error(&event("cmd:restart"), -1712), "Could not restart (error -1712)");
+    }
+
+    /// Records the effects in order; nothing is hidden, locked, slept or sent.
+    #[derive(Default)]
+    struct Log {
+        done: Vec<String>,
+        no_lock: bool,
+        sleep_fails: bool,
+        send_fails: Option<isize>,
+    }
+
+    impl Effects for Log {
+        fn hide(&mut self) {
+            self.done.push("hide".into());
+        }
+        fn can_lock(&mut self) -> bool {
+            self.done.push("can_lock".into());
+            !self.no_lock
+        }
+        fn lock(&mut self) {
+            self.done.push("lock".into());
+        }
+        fn sleep(&mut self) -> std::io::Result<()> {
+            self.done.push("sleep".into());
+            if self.sleep_fails { Err(std::io::Error::other("no pmset")) } else { Ok(()) }
+        }
+        fn send(&mut self, e: &Event) -> Result<(), isize> {
+            self.done.push(format!("send {}", std::str::from_utf8(e.id).unwrap()));
+            self.send_fails.map_or(Ok(()), Err)
+        }
+    }
+
+    fn run(id: &str, fx: Log) -> (Result<(), String>, Vec<String>) {
+        let mut fx = fx;
+        let r = exec(id, &mut fx);
+        (r, fx.done)
+    }
+
+    #[test]
+    fn lock_and_sleep_hide_first_events_hide_only_once_sent() {
+        assert_eq!(run("cmd:lock", Log::default()), (Ok(()), vec!["can_lock".into(), "hide".into(), "lock".into()]));
+        // the symbol is gone: the palette stays up with the error
+        assert_eq!(run("cmd:lock", Log { no_lock: true, ..Log::default() }), (Err("Could not lock the screen".into()), vec!["can_lock".into()]));
+        assert_eq!(run("cmd:sleep", Log::default()), (Ok(()), vec!["hide".into(), "sleep".into()]));
+        assert_eq!(run("cmd:sleep", Log { sleep_fails: true, ..Log::default() }).0, Err("Could not put the Mac to sleep".into()));
+        for (id, code) in [("cmd:restart", "rest"), ("cmd:shutdown", "shut"), ("cmd:logout", "rlgo"), ("cmd:empty-trash", "empt")] {
+            assert_eq!(run(id, Log::default()), (Ok(()), vec![format!("send {code}"), "hide".into()]), "{id}");
+            let (r, done) = run(id, Log { send_fails: Some(-1743), ..Log::default() });
+            assert!(r.unwrap_err().starts_with("hop is not allowed to control"), "{id}");
+            assert_eq!(done, [format!("send {code}")], "{id}: a failed send hid the palette");
+        }
+        assert_eq!(run("cmd:nope", Log::default()), (Err("Not something hop knows".into()), vec![]));
     }
 
     /// Builds the descriptors only: nothing here is ever sent.
@@ -213,9 +329,9 @@ mod tests {
     #[test]
     fn apple_events_are_addressed_by_their_four_char_codes() {
         for id in ["cmd:restart", "cmd:shutdown", "cmd:logout", "cmd:empty-trash"] {
-            let Some(How::Event(class, event, target, _)) = how(id) else { panic!("{id}") };
-            let e = mac::event(class, event, target);
-            assert_eq!((e.eventClass().to_be_bytes(), e.eventID().to_be_bytes()), (*class, *event), "{id}");
+            let e = event(id);
+            let d = mac::event(e.class, e.id, e.target);
+            assert_eq!((d.eventClass().to_be_bytes(), d.eventID().to_be_bytes()), (*e.class, *e.id), "{id}");
         }
         assert_eq!(mac::event(b"aevt", b"rest", "com.apple.loginwindow").eventClass(), 0x61657674); // 'aevt'
     }
