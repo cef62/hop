@@ -3,10 +3,10 @@ import { listen } from "@tauri-apps/api/event";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { calc } from "./calc";
 import { paletteKey, type Actions } from "./keys";
-import { move, prepare, search, type App, type Frecency } from "./rank";
+import { move, prepare, search, type Frecency, type Item } from "./rank";
 
 export type Style = "compact" | "roomy";
-type Index = { generation: number; items: App[] };
+type Index = { generation: number; items: Item[] };
 type Look = { style: Style; perf: boolean; update: string | null };
 
 /** After the next paint: rAF runs before it, the timeout right after. */
@@ -15,7 +15,7 @@ const afterPaint = (f: () => void) => requestAnimationFrame(() => setTimeout(f, 
 type ViewProps = {
   style: Style;
   query: string;
-  rows: App[];
+  rows: Item[];
   /** the calculator's answer to the query: a row above the apps, so row indexes count it */
   result?: string | null;
   sel: number;
@@ -33,17 +33,21 @@ type ViewProps = {
 };
 
 /** The card. Both styles render the same markup; `data-style` only switches CSS variables and the footer rule. */
-/** What row `i` of the list is: the calculator result (row 0 when there is one) or an app. */
-export const rowAt = (i: number, result: string | null | undefined, rows: App[]) => (result == null ? rows[i] : i === 0 ? result : rows[i - 1]);
-export const total = (rows: App[], result: string | null) => rows.length + (result === null ? 0 : 1);
+/** What row `i` of the list is: the calculator result (row 0 when there is one) or an item. */
+export const rowAt = (i: number, result: string | null | undefined, rows: Item[]) => (result == null ? rows[i] : i === 0 ? result : rows[i - 1]);
+export const total = (rows: Item[], result: string | null) => rows.length + (result === null ? 0 : 1);
 
 /** The command Enter (⌘Enter: `reveal`) sends for row `i`. The result row copies (there is nothing to reveal) and so
  * records no launch. */
-export function command(i: number, result: string | null, rows: App[], reveal: boolean): [string, Record<string, unknown>] | null {
+export function command(i: number, result: string | null, rows: Item[], reveal: boolean): [string, Record<string, unknown>] | null {
   const r = rowAt(i, result, rows);
   if (typeof r === "string") return ["copy_text", { text: r }];
-  return r ? ["launch", { path: r.path, reveal }] : null;
+  return r ? ["run", { id: r.id, reveal }] : null;
 }
+
+/** The footer's keys for the selected row: only an app has a Finder location to reveal. */
+const footer = (r: Item | string | undefined) =>
+  typeof r === "string" ? "↵ copy · ⌘1–9 open · esc close" : r && r.kind !== "app" ? "↵ open · ⌘1–9 open · esc close" : "↵ open · ⌘↵ reveal in Finder · ⌘1–9 open · esc close";
 
 export function PaletteView({ style, query, rows, result, sel, error, cmd, update, onQuery, onOpen, onUpdate, input, card, list }: ViewProps) {
   const off = result == null ? 0 : 1;
@@ -106,10 +110,11 @@ export function PaletteView({ style, query, rows, result, sel, error, cmd, updat
             </li>
           )}
           {rows.map((a, j) => (
-            <li key={a.path} {...option(j + off)}>
+            // every section shares the System Settings path: the id is the only unique key
+            <li key={a.id} {...option(j + off)}>
               <span className="icon">
                 <img
-                  src={convertFileSrc(a.path, "icon")}
+                  src={convertFileSrc(a.path ?? "", "icon")}
                   alt=""
                   loading="lazy"
                   onLoad={(e) => (e.currentTarget.dataset.loaded = "")}
@@ -117,6 +122,7 @@ export function PaletteView({ style, query, rows, result, sel, error, cmd, updat
                 />
               </span>
               <span className="name">{a.name}</span>
+              {a.kind === "pane" && <span className="tag">System Settings</span>}
               {hint(j + off, "open")}
             </li>
           ))}
@@ -124,7 +130,7 @@ export function PaletteView({ style, query, rows, result, sel, error, cmd, updat
       )}
       <div className="footer">
         <span className="keys" aria-hidden="true">
-          {typeof rowAt(sel, result, rows) === "string" ? "↵ copy · ⌘1–9 open · esc close" : "↵ open · ⌘↵ reveal in Finder · ⌘1–9 open · esc close"}
+          {footer(rowAt(sel, result, rows))}
         </span>
         {update && (
           // not a Tab stop (the input keeps the focus): ⌘U is its key

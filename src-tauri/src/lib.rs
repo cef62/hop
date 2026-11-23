@@ -15,7 +15,7 @@ mod whatsnew;
 
 /// What each window may invoke: the palette (`main`), Settings and What's new. Only `open_whatsnew` is shared (the
 /// palette's pill and Settings' "What's new…").
-const MAIN_COMMANDS: &[&str] = &["hide_palette", "card_frame", "perf_mark", "list_apps", "frecency", "launch", "copy_text", "open_settings", "open_whatsnew"];
+const MAIN_COMMANDS: &[&str] = &["hide_palette", "card_frame", "perf_mark", "list_apps", "frecency", "run", "copy_text", "open_settings", "open_whatsnew"];
 const SETTINGS_COMMANDS: &[&str] = &["get_settings", "set_settings", "pick_path", "set_login", "close_settings", "check_update", "open_whatsnew"];
 const WHATSNEW_COMMANDS: &[&str] = &["whatsnew_info", "whatsnew_install", "whatsnew_close"];
 
@@ -126,7 +126,7 @@ pub fn run() {
             panel::perf_mark,
             apps::list_apps,
             history::frecency,
-            launch::launch,
+            launch::run,
             clipboard::copy_text,
             settings::get_settings,
             settings::set_settings,
@@ -172,6 +172,7 @@ mod tests {
         }
         assert!(!allowed("", "launch") && !allowed("whatsnew", "get_settings") && !allowed("main", "unknown"));
         assert!(allowed("main", "copy_text") && !allowed("settings", "copy_text") && !allowed("whatsnew", "copy_text"));
+        assert!(allowed("main", "run") && !allowed("main", "launch") && !allowed("settings", "run") && !allowed("whatsnew", "run"));
         assert!(!allowed("main", "check_update") && !allowed("main", "whatsnew_install") && !allowed("settings", "whatsnew_install"));
     }
 }

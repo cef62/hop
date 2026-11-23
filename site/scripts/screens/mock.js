@@ -10,7 +10,7 @@
     ['Activity Monitor', '/System/Applications/Utilities/Activity Monitor.app'], ['Preview', '/System/Applications/Preview.app'],
     ['Reminders', '/System/Applications/Reminders.app'], ['Stocks', '/System/Applications/Stocks.app'],
     ['Shortcuts', '/System/Applications/Shortcuts.app'], ['Weather', '/System/Applications/Weather.app'],
-  ].map(([name, path]) => ({ name, altNames: [], path }));
+  ].map(([name, path]) => ({ kind: 'app', id: path, name, altNames: [], path }));
   const HUES = { Safari: 205, Mail: 215, Maps: 140, Notes: 48, Calendar: 5, Music: 345, Photos: 30, 'System Settings': 220, Messages: 130, Terminal: 0 };
   // simple rounded-square placeholder icon with the app's initial
   const icon = (path) => {

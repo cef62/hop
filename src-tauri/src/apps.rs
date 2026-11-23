@@ -145,6 +145,14 @@ fn relevant(path: &Path, roots: &[PathBuf]) -> bool {
     roots.iter().any(|r| path.strip_prefix(r).is_ok_and(|rest| rest.components().count() <= DEPTH && !in_bundle(rest)))
 }
 
+/// The index: the apps not ignored, then the sections. The ignore list is for apps: ignoring System Settings leaves its
+/// sections in (their rows just lose the icon).
+fn assemble(apps: Vec<Item>, ignored: &[String], panes: Vec<Item>) -> Vec<Item> {
+    let mut items = without_ignored(apps, ignored);
+    items.extend(panes);
+    items
+}
+
 /// One scan at a time: two quick Settings changes must not publish their scans out of order.
 static SCANNING: Mutex<()> = Mutex::new(());
 
@@ -153,9 +161,7 @@ static SCANNING: Mutex<()> = Mutex::new(());
 fn refresh(app: &AppHandle) {
     let _one = SCANNING.lock().unwrap();
     let s = crate::settings::current(app);
-    // the ignore list is for apps: ignoring System Settings leaves its sections in
-    let mut items = without_ignored(index(&roots(&s.extra_folders)), &s.ignored_apps);
-    items.extend(crate::panes::index());
+    let items = assemble(index(&roots(&s.extra_folders)), &s.ignored_apps, crate::panes::index());
     let snapshot = {
         let state = app.state::<Mutex<Index>>();
         let mut idx = state.lock().unwrap();
@@ -255,7 +261,11 @@ fn has_app(items: &[Item], path: &str) -> bool {
 
 /// The index entry for `id`: `run` acts only on these, since the id comes from the webview.
 pub fn item(app: &AppHandle, id: &str) -> Option<Item> {
-    app.state::<Mutex<Index>>().lock().unwrap().items.iter().find(|i| i.id == id).cloned()
+    find(&app.state::<Mutex<Index>>().lock().unwrap().items, id).cloned()
+}
+
+fn find<'a>(items: &'a [Item], id: &str) -> Option<&'a Item> {
+    items.iter().find(|i| i.id == id)
 }
 
 #[tauri::command]
@@ -393,6 +403,19 @@ mod tests {
         let pane = Item { kind: Kind::Pane, id: "pane:a".into(), name: "A".into(), alt_names: vec![], path: Some(settings.into()), confirm: None };
         assert!(!has_app(std::slice::from_ref(&pane), settings), "a section's icon path is not an app");
         assert!(has_app(&[pane, app_entry(Path::new(settings), "")], settings));
+    }
+
+    #[test]
+    fn ignoring_system_settings_keeps_its_sections_runnable() {
+        let settings = "/System/Applications/System Settings.app";
+        let pane = Item { kind: Kind::Pane, id: "pane:a".into(), name: "A".into(), alt_names: vec![], path: Some(settings.into()), confirm: None };
+        let apps = vec![app_entry(Path::new(settings), ""), app_entry(Path::new("/Applications/Mail.app"), "")];
+        let items = assemble(apps, &[settings.into()], vec![pane.clone()]);
+        assert_eq!(find(&items, "pane:a"), Some(&pane));
+        assert_eq!(find(&items, settings), None);
+        assert!(!has_app(&items, settings), "the ignored app's icon is served");
+        assert!(find(&items, "/Applications/Mail.app").is_some());
+        assert!(find(&items, "pane:b").is_none() && find(&items, "").is_none() && find(&items, "pane:").is_none());
     }
 
     #[test]

@@ -2,11 +2,12 @@ import { expect, test, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { command, PaletteView, rowAt, total, type Style } from "./Palette";
 import { paletteKey } from "./keys";
-import { move, prepare, search, type App } from "./rank";
+import { move, prepare, search, type Item } from "./rank";
 
 vi.mock("@tauri-apps/api/core", () => ({ convertFileSrc: (p: string, s: string) => `${s}://localhost/${encodeURIComponent(p)}` }));
 
-const apps: App[] = ["Finder", "Firefox", "Final Cut Pro", "Safari"].map((name) => ({ name, altNames: [], path: `/Applications/${name}.app` }));
+const app = (name: string): Item => ({ kind: "app", id: `/Applications/${name}.app`, name, altNames: [], path: `/Applications/${name}.app` });
+const apps = ["Finder", "Firefox", "Final Cut Pro", "Safari"].map(app);
 const rows = search("fi", prepare(apps), {});
 
 /** Renders `style` after pressing `keys`, through the same key handler and selection logic the palette uses. */
@@ -38,7 +39,7 @@ test("the update pill shows only with a pending update, the same in both styles"
 });
 
 test("⌘N hints show only while ⌘ is held, on the first 9 rows, the same in both styles", () => {
-  const many = Array.from({ length: 11 }, (_, i) => ({ name: `App ${i}`, altNames: [], path: `/Applications/App ${i}.app` }));
+  const many = Array.from({ length: 11 }, (_, i) => app(`App ${i}`));
   const held = render("compact", [], null, true, many);
   expect(held).toEqual(render("roomy", [], null, true, many));
   expect(held.html.match(/<span class="hint" aria-hidden="true">⌘\d<\/span>/g)).toHaveLength(9);
@@ -83,8 +84,8 @@ test("a calculator result is row 0: it copies, the apps follow it, and ⌘N and 
   expect(total(rows, null)).toBe(rows.length);
   // Enter and ⌘Enter on the result copy, an app row launches (⌘Enter reveals), past the end does nothing
   expect(command(0, "14", rows, true)).toEqual(["copy_text", { text: "14" }]);
-  expect(command(1, "14", rows, true)).toEqual(["launch", { path: rows[0].path, reveal: true }]);
-  expect(command(0, null, rows, false)).toEqual(["launch", { path: rows[0].path, reveal: false }]);
+  expect(command(1, "14", rows, true)).toEqual(["run", { id: rows[0].id, reveal: true }]);
+  expect(command(0, null, rows, false)).toEqual(["run", { id: rows[0].id, reveal: false }]);
   expect(command(rows.length + 1, "14", rows, false)).toBeNull();
   // the footer names the selected row's Enter action
   expect(first).toContain('<span class="keys" aria-hidden="true">↵ copy · ⌘1–9 open · esc close</span>');
@@ -97,4 +98,31 @@ test("a result shows the list even when no app matches", () => {
   expect(html).toContain('aria-activedescendant="row-0"');
   expect(html).toContain('aria-label="Result 2, press Enter to copy"');
   expect(renderToStaticMarkup(<PaletteView style="roomy" query="zz" rows={[]} result={null} sel={0} error="" onQuery={() => {}} onOpen={() => {}} />)).not.toContain("listbox");
+});
+
+/** The React keys of the rows `PaletteView` returns (it uses no hooks, so it can be called as a function). */
+function rowKeys(node: unknown): string[] {
+  if (Array.isArray(node)) return node.flatMap(rowKeys);
+  if (!node || typeof node !== "object" || !("props" in node)) return [];
+  const el = node as React.ReactElement<{ children?: unknown }>;
+  return el.type === "li" ? [String(el.key)] : rowKeys(el.props.children);
+}
+
+const settings = "/System/Applications/System Settings.app";
+const pane = (id: string, name: string): Item => ({ kind: "pane", id, name, altNames: [], path: settings });
+
+test("sections share the System Settings icon but render keyed by id, tagged, opened with run", () => {
+  const list = [pane("pane:a", "Sound"), pane("pane:b", "Screen Time"), app("System Settings")];
+  list[2] = { ...list[2], id: settings, path: settings };
+  const props = { style: "compact" as Style, query: "s", rows: list, sel: 0, error: "", onQuery() {}, onOpen() {} };
+  expect(rowKeys(PaletteView(props))).toEqual(["pane:a", "pane:b", settings]);
+  const html = renderToStaticMarkup(<PaletteView {...props} />);
+  expect(html.match(/<span class="tag">System Settings<\/span>/g)).toHaveLength(2); // the app row has no tag
+  expect(html.match(/src="icon:\/\/localhost\/%2FSystem%2FApplications%2FSystem%20Settings.app"/g)).toHaveLength(3);
+  expect(command(0, null, list, true)).toEqual(["run", { id: "pane:a", reveal: true }]);
+  expect(command(1, "3", list, false)).toEqual(["run", { id: "pane:a", reveal: false }]);
+  // ⌘Enter opens a section too: the footer does not offer "reveal in Finder" for one
+  expect(html).toContain('<span class="keys" aria-hidden="true">↵ open · ⌘1–9 open · esc close</span>');
+  const onApp = renderToStaticMarkup(<PaletteView {...props} sel={2} />);
+  expect(onApp).toContain("⌘↵ reveal in Finder");
 });

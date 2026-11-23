@@ -1,7 +1,10 @@
 import { expect, test } from "vitest";
-import { LIMIT, boost, move, prepare, search, type App } from "./rank";
+import { LIMIT, boost, move, prepare, search, type Item } from "./rank";
 
-const app = (name: string, altNames: string[] = []): App => ({ name, altNames, path: `/Applications/${altNames[0] ?? name}.app` });
+const app = (name: string, altNames: string[] = []): Item => {
+  const path = `/Applications/${altNames[0] ?? name}.app`;
+  return { kind: "app", id: path, name, altNames, path };
+};
 const apps = [
   app("Visual Studio Code"),
   app("Impostazioni di Sistema", ["System Settings"]),
@@ -35,7 +38,7 @@ test("frecency orders within a tier but never lifts a partial match over a prefi
 test("empty query: the most used apps, at most 6, nothing without history", () => {
   expect(names("")).toEqual([]);
   expect(names("  ", { "/Applications/Safari.app": 2, "/Applications/Finder.app": 5, "/Applications/Gone.app": 9 })).toEqual(["Finder", "Safari"]);
-  const all = Object.fromEntries(apps.map((a, i) => [a.path, i + 1]));
+  const all = Object.fromEntries(apps.map((a, i) => [a.id, i + 1]));
   expect(names("", all)).toHaveLength(6);
 });
 
@@ -56,7 +59,19 @@ test.skipIf(!!process.env.CI)("1000 apps searched under 5 ms per keystroke", () 
   expect((performance.now() - t0) / 5).toBeLessThan(5);
 });
 
+test("frecency is keyed by id: sections sharing the System Settings path rank apart", () => {
+  const settings = "/System/Applications/System Settings.app";
+  const pane = (id: string, name: string): Item => ({ kind: "pane", id: `pane:${id}`, name, altNames: [], path: settings });
+  const list = prepare([app("Sound Studio"), pane("sound", "Sound"), pane("screen", "Screen Time")]);
+  // same tier (prefix "s"): shorter name first without frecency; a used section rises above an unused app
+  expect(search("s", list, {}).map((i) => i.name)).toEqual(["Sound", "Screen Time", "Sound Studio"]);
+  expect(search("s", list, { "pane:screen": 3 }).map((i) => i.name)).toEqual(["Screen Time", "Sound", "Sound Studio"]);
+  // a count under the shared path lifts no section
+  expect(search("s", list, { [settings]: 9 }).map((i) => i.name)).toEqual(["Sound", "Screen Time", "Sound Studio"]);
+  expect(search("", list, { "pane:screen": 3 }).map((i) => i.id)).toEqual(["pane:screen"]);
+});
+
 test("caps results at LIMIT", () => {
-  const many = prepare(Array.from({ length: 50 }, (_, i) => ({ name: `App ${i}`, altNames: [], path: `/Applications/App ${i}.app` })));
+  const many = prepare(Array.from({ length: 50 }, (_, i) => app(`App ${i}`)));
   expect(search("app", many, {})).toHaveLength(LIMIT);
 });
