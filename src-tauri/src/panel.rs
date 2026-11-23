@@ -91,17 +91,18 @@ fn main_window(app: &AppHandle) -> Option<WebviewWindow> {
 
 /// What the frontend gets with `palette-shown` and `palette-hidden`: the style to apply before the next paint (so a
 /// changed setting lands while the palette is hidden), whether to report timings (`HOP_PERF=1`), and the update waiting
-/// to install, for the footer pill. Read at each show: an update found while the palette is up appears at the next
+/// to install, for the footer pill, and whether the calculator is on. Read at each show: an update found while the palette is up appears at the next
 /// show, so nothing moves under the user's typing.
 #[derive(serde::Serialize, Clone)]
 struct Look {
     style: &'static str,
     perf: bool,
     update: Option<String>,
+    calculator: bool,
 }
 
 fn look(app: &AppHandle) -> Look {
-    Look { style: crate::settings::palette_style(app), perf: perf_enabled(), update: crate::update::pending(app) }
+    Look { style: crate::settings::palette_style(app), perf: perf_enabled(), update: crate::update::pending(app), calculator: crate::settings::current(app).calculator }
 }
 
 fn perf_enabled() -> bool {
@@ -324,6 +325,12 @@ mod mac {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn look_carries_calculator() {
+        let json = serde_json::to_value(Look { style: "compact", perf: false, update: None, calculator: false }).unwrap();
+        assert_eq!(json["calculator"], serde_json::json!(false));
+    }
+
     use super::*;
 
     fn mon(x: i32, y: i32, w: u32, h: u32, scale: f64) -> (PhysicalPosition<i32>, PhysicalSize<u32>, f64) {

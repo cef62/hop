@@ -33,7 +33,7 @@ export function paletteKey(e: Key, a: Actions) {
   } else if (e.metaKey && !e.shiftKey && /^Digit[1-9]$/.test(e.code)) {
     // `code`, not `key`: on AZERTY the digit row types symbols unless ⇧ is held. ⌘⇧3/4/5 are macOS screenshots, so ⇧ is not ours
     e.preventDefault();
-    a.send({ type: "nth", i: Number(e.code.slice(5)) - 1 });
+    a.send({ type: "nth", i: Number(e.code.slice(5)) - 1, repeat: e.repeat }); // a held ⌘N repeats: the reducer ignores it
   } else if (e.metaKey && e.key === ",") {
     e.preventDefault();
     a.settings();

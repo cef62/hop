@@ -66,8 +66,11 @@ pub struct History {
     dirty: bool,
 }
 
+/// In the app data dir.
+pub const FILE: &str = "history.json";
+
 pub fn setup(app: &AppHandle) {
-    let file = app.path().app_data_dir().ok().map(|d| d.join("history.json"));
+    let file = app.path().app_data_dir().ok().map(|d| d.join(FILE));
     let entries = file.as_deref().map(load).unwrap_or_default();
     app.manage(Mutex::new(History { entries, file, dirty: false }));
 }

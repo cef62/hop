@@ -33,6 +33,8 @@ pub struct Settings {
     pub daily_update_check: bool,
     /// Lock Screen, Sleep, Restart… in the index; off leaves them out, so `run` refuses them too
     pub system_commands: bool,
+    /// the calculator row and its history rows in the palette; applies at the palette's next show (`Look`)
+    pub calculator: bool,
     /// start at login was turned on by a first run (or must be left alone); never set from the window
     pub login_applied: bool,
     /// keys this version does not know, written back as they were
@@ -51,6 +53,7 @@ impl Default for Settings {
             palette_style: "compact".into(),
             daily_update_check: true,
             system_commands: true,
+            calculator: true,
             login_applied: false,
             other: Default::default(),
         }
@@ -488,6 +491,27 @@ mod tests {
     fn settings_default_turns_commands_on() {
         assert!(Settings::default().system_commands);
         assert_eq!(serde_json::to_value(Settings::default()).unwrap()["systemCommands"], json!(true));
+    }
+
+    #[test]
+    fn old_settings_file_keeps_calculator_on() {
+        assert!(Settings::default().calculator);
+        assert_eq!(serde_json::to_value(Settings::default()).unwrap()["calculator"], json!(true));
+        let tmp = tempfile::tempdir().unwrap();
+        let p = tmp.path().join("settings.json");
+        // a 0.3.0 file: the commands switch, no calculator key
+        std::fs::write(&p, r#"{"version":1,"systemCommands":false,"loginApplied":true}"#).unwrap();
+        let (s, _) = load(&p);
+        assert!(s.calculator && !s.system_commands && s.other.is_empty());
+        let (off, bad) = merge(&s, &json!({"calculator": false}));
+        assert!(bad.is_empty() && !off.calculator && !off.system_commands);
+        save(&p, &off).unwrap();
+        assert!(!load(&p).0.calculator);
+        // a wrong type falls back to on
+        std::fs::write(&p, r#"{"version":1,"calculator":"no","loginApplied":true}"#).unwrap();
+        assert!(load(&p).0.calculator);
+        // the switch needs no rescan: the palette reads it at its next show
+        assert_eq!(reload(&Settings::default(), &merge(&Settings::default(), &json!({"calculator": false})).0), None);
     }
 
     #[test]

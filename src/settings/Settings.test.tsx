@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { SettingsPage, type View } from "./Settings";
 
 const view: View = {
-  settings: { hotkey: "Alt+Space", extraFolders: ["/Volumes/Tools"], ignoredApps: ["/Applications/Chess.app"], theme: "system", paletteStyle: "compact", dailyUpdateCheck: true, systemCommands: true },
+  settings: { hotkey: "Alt+Space", extraFolders: ["/Volumes/Tools"], ignoredApps: ["/Applications/Chess.app"], theme: "system", paletteStyle: "compact", dailyUpdateCheck: true, systemCommands: true, calculator: true },
   hotkeyError: "taken by another app",
   login: true,
   loginRefusal: null,
@@ -28,12 +28,17 @@ test("Settings exposes lists, alerts and the hotkey's name to assistive tech", (
   expect(html).toContain('<h2 id="general" tabindex="-1">General</h2>');
 });
 
-test("the System commands switch shows the saved setting", () => {
-  const sw = /<label class="row">System commands<input type="checkbox" switch=""( checked="")?\/><\/label>/;
+test.each([
+  ["System commands", "systemCommands"],
+  ["Calculator", "calculator"],
+])("the %s switch shows the saved setting, apart from the other", (label, key) => {
+  const sw = new RegExp(`<label class="row">${label}<input type="checkbox" switch=""( checked="")?/></label>`);
   const on = renderToStaticMarkup(<SettingsPage initial={view} />);
   expect(on).toContain('<section aria-labelledby="search"><h2 id="search">Search</h2>');
   expect(on.match(sw)?.[1]).toBe(' checked=""');
-  const off = renderToStaticMarkup(<SettingsPage initial={{ ...view, settings: { ...view.settings, systemCommands: false } }} />);
+  const off = renderToStaticMarkup(<SettingsPage initial={{ ...view, settings: { ...view.settings, [key]: false } }} />);
   expect(off).toMatch(sw);
   expect(off.match(sw)?.[1]).toBeUndefined();
+  // the other switch keeps its own value
+  expect(off.match(/ checked=""/g)?.length).toBe((on.match(/ checked=""/g)?.length ?? 0) - 1);
 });

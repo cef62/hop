@@ -231,3 +231,22 @@ Retrospectives, newest last. Lessons carried in from v2 (`docs/v2-plan.md`): gat
 - Pure seams again made runtime decisions testable (`open_args`). Mutation counts: 21 → 45 killed after fixes.
 - Fixed inline after round 2: Norwegian `nb`/`nn` → `no`, second junk-name fixture. Deferred: Headphones (no name source).
 - Adjustments for PR 2: the brief lists the real-data check (what `loginwindow`/Finder Apple Events return, the actual `SACLockScreenImmediate` symbol presence on this Mac) as read-only probes the implementer may run; Opus implements (native code); the review attack list starts from the plan's Review Focus 2 and every disarm path.
+
+### After PR 2 (#22, merged 2026-11-23)
+
+- Two review rounds (FAIL with 1 Major, then PASS) plus a short Minor round. The Major was a product hole the plan missed: commands in the empty-query recent list made one Enter lock or sleep the Mac. Lesson: for anything destructive, the plan lists every path that can reach it (typed query, empty query, ⌘N, click, held key, reorder), not only the happy path.
+- The read-only real-data probe paid off: the installed app is signed with the hardened runtime, so Apple Events needed the `automation.apple-events` entitlement. Without that probe every session command would have failed in release.
+- The SAFETY rule (never execute a command on the owner's Mac) held across four agents.
+- A pure reducer (`confirm.ts` `step`/`live`) turned 17 untestable glue mutations into 15 caught; the rest are one-line forwards. Pattern for the future: put every decision in a reducer, keep components as forwards.
+- Process slip: one fix round ran the gate on the final tree only. The per-commit check found no red commit, but briefs now say "gate before each commit" and reviewers spot-check it.
+- Adjustment for PR 3: a cheaper split — Sonnet implements (the plan is detailed and frontend-heavy), Opus reviews once; the brief lists every path into "replace the query" and "insert a result" up front, and asks for the reducer pattern for history rows.
+
+### During PR 3 (`feat/calc-history`)
+
+Deviations from Tasks 8-11, recorded in the spec's "Calculator history" section:
+
+- `Lead`, `leads`, `rowAt`, `total` live in `src/leads.ts`, not `Palette.tsx`. The plan's `action(row, reveal, query)` became the reducer: `step` (`src/confirm.ts`) returns `query` for a history row (edit on Enter, ⌘N, click; insert on ⌘Enter), and `command` in `Palette.tsx` only maps the result and item rows to Tauri calls. `Row` moved to `leads.ts`; a result row is `{ kind: "result", text }`, no longer a string.
+- A held Enter does nothing on any lead row (result or history): after an edit the repeat would land on the new query's live row and copy it.
+- Fuzz of results fed back through `calc(result + "*1")`: equal, except a non-integer from 1e11 up that rounds to an integer in exponent form comes back in plain digits (same number). Kept the existing display rule; documented.
+- No history refetch after a copy: a copy hides the palette, and `palette-shown` reads it.
+- Mutation checks (JS 35, Rust 15 plus 3 added after the first pass): survivors are equivalent mutants (`live` and the history branch's `armed`: a lead is never an armed row) or glue forwards (Settings save key, `palette-shown` read, caret flag, error reset, `Look` construction).

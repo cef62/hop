@@ -1,4 +1,4 @@
-//! Copying the calculator's result to the clipboard.
+//! Copying the calculator's result to the clipboard, and recording the copy in the calculator history.
 
 use tauri::AppHandle;
 
@@ -13,12 +13,23 @@ fn check(text: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Copies `text` with `write`, then, only if that worked and there is an expression, hands the pair to `record`. The
+/// order is the rule: a failed copy records nothing, and `record` has no way to fail the copy.
+fn copy_and_record(text: &str, expr: Option<&str>, write: impl FnOnce(&str) -> Result<(), String>, record: impl FnOnce(&str, &str)) -> Result<(), String> {
+    check(text)?;
+    write(text)?;
+    if let Some(expr) = expr {
+        record(expr, text);
+    }
+    Ok(())
+}
+
 /// Puts `text` on the general pasteboard as plain text, then hides the palette so the user can paste in their app. Like
-/// `run`, a failure keeps the palette open with the error. Records no launch.
+/// `run`, a failure keeps the palette open with the error. Records no launch. With `expr` (the sum the result answers)
+/// the copy also goes in the calculator history.
 #[tauri::command]
-pub fn copy_text(app: AppHandle, text: String) -> Result<(), String> {
-    check(&text)?;
-    write(&text)?;
+pub fn copy_text(app: AppHandle, text: String, expr: Option<String>) -> Result<(), String> {
+    copy_and_record(&text, expr.as_deref(), write, |e, r| crate::calc_history::push(&app, e, r))?;
     crate::panel::hide(&app);
     Ok(())
 }
@@ -53,5 +64,21 @@ mod tests {
         assert!(check(&"é".repeat(MAX_CHARS)).is_ok()); // characters, not bytes
         assert!(check(&"9".repeat(MAX_CHARS + 1)).is_err());
         assert!(check("").is_err());
+    }
+
+    #[test]
+    fn only_a_copy_records() {
+        let rec = std::cell::RefCell::new(vec![]);
+        let record = |e: &str, r: &str| rec.borrow_mut().push((e.to_string(), r.to_string()));
+        assert!(copy_and_record("4", Some("2+2"), |_| Ok(()), record).is_ok());
+        assert_eq!(*rec.borrow(), [("2+2".to_string(), "4".to_string())]);
+        // no expression (a caller that is not the calculator): copies, records nothing
+        rec.borrow_mut().clear();
+        assert!(copy_and_record("4", None, |_| Ok(()), record).is_ok());
+        // the pasteboard refused, or the text is not copyable: nothing recorded
+        assert!(copy_and_record("4", Some("2+2"), |_| Err("no".into()), record).is_err());
+        assert!(copy_and_record("", Some("2+2"), |_| Ok(()), record).is_err());
+        assert!(copy_and_record(&"9".repeat(MAX_CHARS + 1), Some("2+2"), |_| Ok(()), record).is_err());
+        assert!(rec.borrow().is_empty());
     }
 }

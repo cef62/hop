@@ -33,8 +33,15 @@ hop has no Dock icon: press **⌥Space** (the default hotkey) or click its menu-
   off.
 - Calculator: type a sum such as `2+3*4` and the answer shows above the apps; **Enter** (or **⌘1**) copies it and
   hides the palette, ready to paste. It takes `+ - * / % ^` (`%` is the remainder), parentheses and decimals with a
-  `.`; `×` and `÷` work too. A bare number such as `2024` stays an app search. Whole numbers up to 9007199254740991 are exact; other
-  answers round to 12 significant digits, in exponent form (`9.00719925474e+15`) when that rounding reaches the units.
+  `.`; `×` and `÷` work too, and so do exponent numbers such as `1.2e+21`. A bare number such as `2024` stays an app
+  search. Whole numbers up to 9007199254740991 are exact; other answers round to 12 significant digits, in exponent
+  form (`9.00719925474e+15`) when that rounding reaches the units.
+- Calculator history: hop keeps the last 20 results you copied. Under a sum, the latest 5 show below its answer as
+  `expression = result`; type `=` alone to list all 20. A sum that waits for its last number (`1+`, `12*`, `(`) lists
+  the latest 5 too. **Enter** (or **⌘N**, or a click) on one puts its expression in the field to edit. **⌘Enter**
+  inserts its result: after `1+` it makes `1+87`, on `=` or an empty field it replaces them with the result. Under a
+  complete sum (`1+2`) or a number there is no place for it, so **⌘Enter** does nothing there and the footer does not
+  offer it. Settings › Calculator turns the answer and the history off, and `=` becomes a plain search.
 - hop finds apps in `/Applications`, `/System/Applications`, their `Utilities` folders and `~/Applications`, one
   folder deep (vendor folders work), and picks up installed or removed apps by itself.
 - **Esc**, or clicking away, hides it and returns focus to the app you were in.
@@ -42,7 +49,7 @@ hop has no Dock icon: press **⌥Space** (the default hotkey) or click its menu-
   when another app holds the hotkey.
 - **⌘,** in the palette opens Settings; **Esc** closes Settings.
 - Settings: the hotkey (click it, press a new chord; ⌫ removes it, Esc cancels), start at login (on by default),
-  extra folders to index, apps to hide, system commands (on by default), theme (System, Light, Dark) and palette
+  extra folders to index, apps to hide, system commands and the calculator (both on by default), theme (System, Light, Dark) and palette
   style (Compact or Roomy). Changes
   apply at once. If another app (Raycast, Alfred) uses the same hotkey, both respond: change one of them.
 - Opening the hop app again while it runs shows the palette.

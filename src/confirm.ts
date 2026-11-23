@@ -1,3 +1,4 @@
+import { insert, insertable, isLead, type Row } from "./leads";
 import type { Item } from "./rank";
 
 /**
@@ -11,14 +12,13 @@ export function press(armed: string | null, item: Item, plain: boolean): { armed
   return { armed: plain ? item.id : null, run: false };
 }
 
-/** A palette row: the calculator's answer, an item, or nothing (past the end). */
-export type Row = Item | string | undefined;
 /** The selected row and the command waiting for its second Enter, with the query it was armed under. */
 export type State = { armed: { id: string; q: string } | null; sel: number };
 export type Event =
   | { type: "enter"; meta: boolean; repeat: boolean }
-  /** ⌘N, or a click on a row */
-  | { type: "nth" | "click"; i: number }
+  /** ⌘N (`repeat`: a held key's auto-repeat, which does nothing), or a click on a row */
+  | { type: "nth"; i: number; repeat?: boolean }
+  | { type: "click"; i: number }
   /** any other key, a pointer down, a new query, the palette hidden */
   | { type: "key" | "pointer" | "query" | "hidden" };
 
@@ -27,17 +27,33 @@ export type Event =
  * different rows, and so does a query change that sent no event (dictation, a context-menu paste). */
 export function live(s: State, row: (i: number) => Row, q: string): string | null {
   const r = row(s.sel);
-  return typeof r === "object" && s.armed && r.id === s.armed.id && s.armed.q === q ? s.armed.id : null;
+  return r && !isLead(r) && s.armed && r.id === s.armed.id && s.armed.q === q ? s.armed.id : null;
 }
 
-/** What an event does to the selection and the armed command, and which row it runs (`run`, or null); `q` is the
- * query. */
-export function step(s: State, ev: Event, row: (i: number) => Row, q: string): State & { run: number | null } {
+export type Out = State & {
+  /** the row to run (a live result copies, an item launches), or null */
+  run: number | null;
+  /** the query replaces the current one: a history row was edited or its result inserted. The palette stays open. */
+  query?: string;
+};
+
+/** What an event does to the selection and the armed command, which row it runs (`run`, or null) and whether it
+ * replaces the query (`query`); `q` is the current query.
+ * Enter or ⌘N or a click on a history row replaces the query with its expression, ⌘Enter inserts its result (`insert`
+ * in leads.ts; nothing when the query has no place for it): the
+ * selection goes back to the first row and any armed command is disarmed, as for any query change. A held Enter's
+ * repeats do nothing on a lead: the first press may have changed the query, and the repeat would land on its live row. */
+export function step(s: State, ev: Event, row: (i: number) => Row, q: string): Out {
   /** Row `i` pressed while `before` is armed. */
-  const act = (i: number, before: string | null, plain: boolean) => {
+  const act = (i: number, before: string | null, plain: boolean, meta = false): Out => {
     const r = row(i);
     if (r === undefined) return { armed: null, sel: s.sel, run: null };
-    if (typeof r === "string") return { armed: null, sel: s.sel, run: i };
+    if (isLead(r)) {
+      if (r.kind === "result") return { armed: null, sel: s.sel, run: i };
+      if (!meta) return { armed: null, sel: 0, run: null, query: r.expr };
+      // an insert needs a place for the result: nowhere (a complete sum, a number) it does nothing
+      return insertable(q) ? { armed: null, sel: 0, run: null, query: insert(q, r.result) } : { armed: null, sel: s.sel, run: null };
+    }
     const p = press(before, r, plain);
     if (p.run) return { armed: null, sel: s.sel, run: i };
     // the armed row becomes the selected one, so the next Enter confirms it
@@ -45,11 +61,14 @@ export function step(s: State, ev: Event, row: (i: number) => Row, q: string): S
   };
   switch (ev.type) {
     case "enter":
-      // ⌘Enter, like ⌘N, can arm a command but never confirm one; a held Enter's repeats only disarm
-      return ev.meta ? act(s.sel, null, true) : act(s.sel, live(s, row, q), !ev.repeat);
+      // a held key acts once: the first press may have changed the query and the list under it, so a repeat only disarms
+      if (ev.repeat) return { armed: null, sel: s.sel, run: null };
+      // ⌘Enter, like ⌘N, can arm a command but never confirm one
+      return ev.meta ? act(s.sel, null, true, true) : act(s.sel, live(s, row, q), true);
     case "nth":
     case "click":
-      return act(ev.i, null, true);
+      // the first press may have changed the list under the held key: its repeat must not land on another row
+      return ev.type === "nth" && ev.repeat ? { armed: null, sel: s.sel, run: null } : act(ev.i, null, true);
     case "key":
     case "pointer":
       return { armed: null, sel: s.sel, run: null };
