@@ -175,7 +175,7 @@ describe("learned picks", () => {
   test("the cap counts code points: an emoji at the boundary is never cut in half", () => {
     const k = pickKey("a".repeat(PICK_KEY - 1) + "😀x");
     expect(k).toBe("a".repeat(PICK_KEY - 1) + "😀");
-    expect(k.isWellFormed()).toBe(true);
+    expect(() => encodeURIComponent(k)).not.toThrow(); // a lone surrogate throws
     expect(Array.from(pickKey("😀".repeat(40)))).toHaveLength(PICK_KEY);
   });
 
