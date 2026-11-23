@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { calc } from "./calc";
-import { ALL, insert, isLead, leads, rowAt, SHOWN, total, type Entry } from "./leads";
+import { insert, isLead, leads, rowAt, SHOWN, total, type Entry } from "./leads";
 import type { Item } from "./rank";
 
 const hist = (n: number): Entry[] => Array.from({ length: n }, (_, i) => ({ expr: `${i}+1`, result: String(i + 1) }));
@@ -25,9 +25,16 @@ test("a history entry equal to the query is not repeated, and the next ones fill
   expect(leads("2 + 2", "4", history, true)[1]).toEqual(h({ expr: "2+2", result: "4" }));
 });
 
+test("an entry with stray spaces still counts as the query (a hand-edited file)", () => {
+  const l = leads("2+2", "4", [{ expr: " 2+2 ", result: "4" }, ...hist(2)], true);
+  expect(l.filter((r) => r.kind === "history")).toEqual(hist(2).map(h));
+});
+
 test("= alone lists up to twenty, no live row; spaces around it count as =", () => {
   for (const q of ["=", " = ", "  =", "=\t"]) {
-    expect(leads(q, null, hist(25), true)).toEqual(hist(ALL).map(h));
+    expect(leads(q, null, hist(25), true)).toEqual(hist(20).map(h));
+    expect(leads(q, null, hist(25), true)).toHaveLength(20);
+    expect(leads(q, null, hist(20), true)).toHaveLength(20);
     expect(leads(q, null, hist(1), true)).toEqual(hist(1).map(h));
     expect(leads(q, null, hist(0), true)).toEqual([]);
   }

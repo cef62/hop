@@ -22,6 +22,11 @@ fn valid(e: &Entry) -> bool {
     !e.expr.trim().is_empty() && e.expr.chars().count() <= MAX_CHARS && !e.result.is_empty()
 }
 
+/// The entry for a copied `result` of `expr`, or none when it is not a plausible sum.
+fn entry(expr: &str, result: &str) -> Option<Entry> {
+    Some(Entry { expr: expr.trim().into(), result: result.into() }).filter(valid)
+}
+
 /// `e` first; an earlier entry with the same expression is replaced, not repeated.
 pub fn record(list: &mut Vec<Entry>, e: Entry) {
     list.retain(|x| x.expr != e.expr);
@@ -64,10 +69,7 @@ pub fn setup(app: &AppHandle) {
 /// Records a copied result. An entry that is not a plausible sum is dropped; a failed save is logged and the entry
 /// stays in memory, so the copy that triggered it never fails.
 pub fn push(app: &AppHandle, expr: &str, result: &str) {
-    let e = Entry { expr: expr.trim().into(), result: result.into() };
-    if !valid(&e) {
-        return;
-    }
+    let Some(e) = entry(expr, result) else { return };
     let state = app.state::<Mutex<Store>>();
     let mut s = state.lock().unwrap();
     record(&mut s.list, e);
@@ -128,11 +130,20 @@ mod tests {
         assert_eq!(load(&file), l);
         assert!(!file.with_extension("json.tmp").exists());
         // a hand-edited file: junk entries dropped, the rest capped at KEEP
-        let many: Vec<Entry> = (0..30).map(|i| e(&format!("{i}+1"))).chain([e(""), e("   "), e(&"1+".repeat(101))]).collect();
+        let many: Vec<Entry> = [e(""), e("   "), e(&"1+".repeat(101))].into_iter().chain((0..30).map(|i| e(&format!("{i}+1")))).collect();
         save(&file, &many).unwrap();
         assert_eq!(load(&file).len(), KEEP);
+        assert_eq!(load(&file)[0].expr, "0+1");
         save(&file, &[e("1+1"), e("2+2"), Entry { expr: "1+1".into(), result: "9".into() }]).unwrap();
         assert_eq!(load(&file), [e("1+1"), e("2+2")]);
+    }
+
+    #[test]
+    fn a_copy_makes_a_trimmed_entry_or_none() {
+        assert_eq!(entry(" 2 + 2 ", "4"), Some(Entry { expr: "2 + 2".into(), result: "4".into() }));
+        assert_eq!(entry("  ", "4"), None);
+        assert_eq!(entry("2+2", ""), None);
+        assert_eq!(entry(&"1".repeat(MAX_CHARS + 1), "4"), None);
     }
 
     #[test]
