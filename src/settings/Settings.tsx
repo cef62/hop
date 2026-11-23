@@ -10,6 +10,7 @@ type Settings = {
   theme: "system" | "light" | "dark";
   paletteStyle: "compact" | "roomy";
   dailyUpdateCheck: boolean;
+  systemCommands: boolean;
 };
 export type View = { settings: Settings; hotkeyError: string | null; login: boolean; loginRefusal: string | null; version: string; update: string | null };
 type UpdateInfo = { version: string };
@@ -202,6 +203,16 @@ export function SettingsPage({ initial = null }: { initial?: View | null }) {
 
         <h3>Ignored apps</h3>
         {list("ignoredApps", "Ignored apps", "No app is hidden from the palette.", "Add app…", "app")}
+      </section>
+
+      <section aria-labelledby="search">
+        <h2 id="search">Search</h2>
+        <div className="group">
+          <label className="row">
+            System commands
+            <input type="checkbox" {...toggle} checked={s.systemCommands} onChange={(e) => save(() => ({ systemCommands: e.target.checked }))} />
+          </label>
+        </div>
       </section>
 
       <section aria-labelledby="appearance">

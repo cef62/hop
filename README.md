@@ -23,6 +23,13 @@ hop has no Dock icon: press **⌥Space** (the default hotkey) or click its menu-
 - System Settings sections: type a section's name, such as `privacy` or `storage`, and **Enter** opens System
   Settings on it (Privacy & Security, General › Storage). Sections match by their name in each of your Mac's
   languages and in English, carry a "System Settings" tag, and rank with the apps.
+- System commands: Lock Screen (`lock`), Sleep, Restart (`reboot`), Shut Down (`shutdown`, `power off`), Log Out
+  (`logout`, `sign out`) and Empty Trash (`trash`), matched by their English names and rank with the apps. Lock
+  Screen and Sleep run on **Enter**. Restart, Shut Down, Log Out and Empty Trash ask for a second **Enter**: the row
+  reads "Press Enter again to restart", and any other key, a click or a new query cancels. Apps with unsaved work can
+  still stop a restart, shut down or log out. The first Empty Trash asks you to let hop control Finder (macOS may ask
+  for Restart, Shut Down and Log Out too); hop is not signed with an Apple Developer ID, so macOS may ask again after
+  an update. Settings › System commands turns them off.
 - Calculator: type a sum such as `2+3*4` and the answer shows above the apps; **Enter** (or **⌘1**) copies it and
   hides the palette, ready to paste. It takes `+ - * / % ^` (`%` is the remainder), parentheses and decimals with a
   `.`; `×` and `÷` work too. A bare number such as `2024` stays an app search. Whole numbers up to 9007199254740991 are exact; other
@@ -34,7 +41,8 @@ hop has no Dock icon: press **⌥Space** (the default hotkey) or click its menu-
   when another app holds the hotkey.
 - **⌘,** in the palette opens Settings; **Esc** closes Settings.
 - Settings: the hotkey (click it, press a new chord; ⌫ removes it, Esc cancels), start at login (on by default),
-  extra folders to index, apps to hide, theme (System, Light, Dark) and palette style (Compact or Roomy). Changes
+  extra folders to index, apps to hide, system commands (on by default), theme (System, Light, Dark) and palette
+  style (Compact or Roomy). Changes
   apply at once. If another app (Raycast, Alfred) uses the same hotkey, both respond: change one of them.
 - Opening the hop app again while it runs shows the palette.
 - Updates: while Settings › Check every day is on, hop checks for a new version 30 seconds after it starts, then

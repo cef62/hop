@@ -79,6 +79,7 @@ The calculator history is frontend state plus a small Rust store, independent of
 | Empty Trash | trash | yes | Apple Event to Finder (`empty trash`). The first use triggers the macOS Automation prompt for Finder: add `NSAppleEventsUsageDescription` to the bundle. |
 
 - The builder checks whether the `loginwindow` events also trigger an Automation prompt. If they do, the usage description covers them, and the PR notes the one-time prompt.
+- Built: tauri signs the bundle with the hardened runtime (`flags=0x10002(adhoc,runtime)` on 0.2.0), which refuses every Apple Event without the `com.apple.security.automation.apple-events` entitlement, so the bundle gets `src-tauri/Entitlements.plist`. Events go out without waiting for a reply (Empty Trash on a large Trash replies only when done); a refused send (-1743) names Privacy & Security › Automation in the error.
 - Icons: small inline SVG glyphs in the palette's style, `aria-hidden`.
 - The commands do not record frecency for the confirm step, only when they run.
 
@@ -87,6 +88,7 @@ The calculator history is frontend state plus a small Rust store, independent of
 - Frontend state `armed: id | null`. Enter (or ⌘N) on a row whose command needs confirmation arms it. The row then reads "Press Enter again to restart" (per command), and the hint reads "↵ confirm".
 - Enter on the armed row runs it. Any other key, a query change, a selection change, a click elsewhere, or hiding the palette disarms it.
 - The transitions are a pure function (like `paletteKey`) with a unit test. Disarming on hide goes through the existing `palette-hidden` reset.
+- Built: ⌘N and a click arm a command (and select its row) but never confirm; a held Enter's auto-repeat never confirms either (holding Enter would otherwise restart). Command rows' hint and footer read "↵ run".
 - Accessibility: the armed row's accessible name changes to the confirm prompt, and a polite live region announces it.
 
 ### Calculator history

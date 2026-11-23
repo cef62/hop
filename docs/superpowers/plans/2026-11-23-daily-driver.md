@@ -133,6 +133,8 @@
 - [ ] **Step 4: Run** the gate — PASS. Manual checks for the PR: Lock Screen locks; Sleep sleeps; Empty Trash prompts once for Finder, then empties; Restart with an unsaved TextEdit document shows TextEdit's save dialog and can be cancelled (do Log Out / Shut Down the same way). Record in the PR whether `loginwindow` events prompted for Automation.
 - [ ] **Step 5: Commit** `feat: system commands in the index`.
 
+Built: `assemble(apps, ignored, panes, commands)` (PR 1's signature plus the flag); `src-tauri/Entitlements.plist` with `com.apple.security.automation.apple-events` (the hardened runtime refuses Apple Events without it); `run` sends `Kind::Command` to `commands::exec` before `open_args`.
+
 ### Task 6: Two-Enter confirmation in the palette
 
 **Files:**
@@ -149,6 +151,8 @@
 - [ ] **Step 3: Implement.** Command rows: inline SVG glyph in the icon box (`aria-hidden`), no image request.
 - [ ] **Step 4: Run** the gate — PASS.
 - [ ] **Step 5: Commit** `feat: commands that end the session ask for a second Enter`.
+
+Built: `Actions.open(reveal, repeat)`: a held Enter's repeats pass `plain = false`. ⌘N and clicks call `press(null, item, true)`: they arm (and select) but never confirm. `reset(query)` is the pure reducer behind `onQuery` and `palette-hidden`.
 
 ### Task 7: Settings switch and PR 2 docs
 
