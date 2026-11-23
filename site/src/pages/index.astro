@@ -9,6 +9,8 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const features = [
   { title: 'One shortcut', text: 'Press ⌥Space over any app. Press it again to hide.' },
   { title: 'Finds apps as you type', text: 'Search by name or by initials: vsc finds Visual Studio Code, and privacy opens that System Settings section.' },
+  { title: 'System Settings sections', text: 'Type privacy, wifi or battery to open that System Settings section directly.' },
+  { title: 'System commands', text: 'Lock, sleep, restart, shut down, log out or empty the Trash from the palette; the risky ones ask for a second Enter.' },
   { title: 'Quick maths', text: 'Type 2+3*4 to see 14, press Enter to copy it.' },
   { title: 'Stays out of the way', text: 'No Dock icon. Esc returns you to the app you were in.' },
   { title: 'Updates itself', text: 'hop tells you about a new version and installs it when you say so.' },
@@ -29,7 +31,7 @@ const features = [
     </p>
   </section>
 
-  <Shot name="palette-results" alt="The hop palette with the query “sa”, listing Safari and Messages." priority />
+  <Shot name="palette-results" alt="The hop palette with the query “sa”, listing Safari, Messages, the Restart command and the Displays section of System Settings." priority />
 
   <ul class="cards">
     {features.map((f) => (

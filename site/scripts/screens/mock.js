@@ -11,6 +11,20 @@
     ['Reminders', '/System/Applications/Reminders.app'], ['Stocks', '/System/Applications/Stocks.app'],
     ['Shortcuts', '/System/Applications/Shortcuts.app'], ['Weather', '/System/Applications/Weather.app'],
   ].map(([name, path]) => ({ kind: 'app', id: path, name, altNames: [], path }));
+  const SETTINGS = '/System/Applications/System Settings.app';
+  const PANES = [
+    ['com.apple.settings.PrivacySecurity.extension', 'Privacy & Security'], ['com.apple.wifi-settings-extension', 'Wi\u2011Fi'],
+    ['com.apple.Battery-Settings.extension', 'Battery'], ['com.apple.Bluetooth-Settings.extension', 'Bluetooth'],
+    ['com.apple.Sound-Settings.extension', 'Sound'], ['com.apple.Displays-Settings.extension', 'Displays'],
+  ].map(([id, name]) => ({ kind: 'pane', id: 'pane:' + id, name, altNames: [], path: SETTINGS }));
+  // the six commands of commands.rs; no path, the palette draws their glyphs
+  const COMMANDS = [
+    ['cmd:lock', 'Lock Screen', ['lock'], null], ['cmd:sleep', 'Sleep', [], null],
+    ['cmd:restart', 'Restart', ['reboot'], 'Press Enter again to restart'], ['cmd:shutdown', 'Shut Down', ['shutdown', 'power off'], 'Press Enter again to shut down'],
+    ['cmd:logout', 'Log Out', ['logout', 'sign out'], 'Press Enter again to log out'], ['cmd:empty-trash', 'Empty Trash', ['trash'], 'Press Enter again to empty the Trash'],
+  ].map(([id, name, altNames, confirm]) => ({ kind: 'command', id, name, altNames, ...(confirm && { confirm }) }));
+  // newest first, as calc_history sends them
+  const HISTORY = [['1299/12', '108.25'], ['(48+16)*3', '192'], ['18% of 240', '43.2'], ['2^10', '1024'], ['12*7+3', '87']].map(([expr, result]) => ({ expr, result }));
   const HUES = { Safari: 205, Mail: 215, Maps: 140, Notes: 48, Calendar: 5, Music: 345, Photos: 30, 'System Settings': 220, Messages: 130, Terminal: 0 };
   // simple rounded-square placeholder icon with the app's initial
   const icon = (path) => {
@@ -22,7 +36,7 @@
   };
   const frecency = Object.fromEntries(['Safari', 'Mail', 'Notes', 'Calendar', 'Music'].map((n, i) => [APPS.find((a) => a.name === n).path, 50 - i * 8]));
   const view = {
-    settings: { hotkey: 'Alt+Space', extraFolders: ['/Users/me/Tools'], ignoredApps: ['/System/Applications/Stocks.app'], theme: 'system', paletteStyle: 'compact', dailyUpdateCheck: true },
+    settings: { hotkey: 'Alt+Space', extraFolders: ['/Users/me/Tools'], ignoredApps: ['/System/Applications/Stocks.app'], theme: 'system', paletteStyle: 'compact', dailyUpdateCheck: true, systemCommands: true, calculator: true },
     hotkeyError: null, login: true, loginRefusal: null, version: '0.1.2', update: null,
   };
   // the real 0.1.2 entry of CHANGELOG.md, as release-notes.mjs writes it (no commit hash)
@@ -34,10 +48,17 @@
     transformCallback(cb) { const id = ++cbId; cbs[id] = cb; return id; },
     unregisterCallback(id) { delete cbs[id]; },
     convertFileSrc: (p) => icon(p),
-    async invoke(cmd) {
+    async invoke(cmd, args) {
       switch (cmd) {
-        case 'plugin:event|listen': return ++cbId;
-        case 'list_apps': return { generation: 1, items: APPS };
+        case 'plugin:event|listen': {
+          // the real backend emits palette-shown on every show: it carries the Look and makes the palette read the history
+          if (args.event === 'palette-shown') setTimeout(() => cbs[args.handler]?.({ event: args.event, id: 0, payload: { style: 'compact', perf: false, update: null, calculator: true } }), 50);
+          return ++cbId;
+        }
+        case 'calc_history': return HISTORY;
+        // never forwarded anywhere: the mock runs nothing
+        case 'run': case 'copy_text': return null;
+        case 'list_apps': return { generation: 1, items: [...APPS, ...PANES, ...COMMANDS] };
         case 'frecency': return frecency;
         case 'get_settings': case 'set_settings': return view;
         case 'whatsnew_info': return { update: { version: '0.1.2', current_version: '0.1.1', notes }, phase: { kind: 'idle' } };
