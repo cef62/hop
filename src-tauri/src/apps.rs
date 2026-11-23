@@ -1,5 +1,5 @@
 //! The index of what the palette finds: apps, found by walking the roots and named as the Finder does, plus System
-//! Settings sections (`panes`). Kept in memory and rescanned when a root changes. The frontend gets the list once
+//! Settings sections (`panes`) and system commands (`commands`). Kept in memory and rescanned when a root changes. The frontend gets the list once
 //! (`list_apps`) and again on every `apps-changed` event.
 
 use std::collections::HashSet;
@@ -24,7 +24,7 @@ pub enum Kind {
 pub struct Item {
     pub kind: Kind,
     /// What `run` and frecency key on: an app's path (so `history.json` from before items carries over), `pane:<bundle
-    /// id>` for a section.
+    /// id>` for a section, `cmd:<name>` for a command.
     pub id: String,
     /// What the Finder shows (localized), without `.app`.
     pub name: String,
@@ -145,11 +145,14 @@ fn relevant(path: &Path, roots: &[PathBuf]) -> bool {
     roots.iter().any(|r| path.strip_prefix(r).is_ok_and(|rest| rest.components().count() <= DEPTH && !in_bundle(rest)))
 }
 
-/// The index: the apps not ignored, then the sections. The ignore list is for apps: ignoring System Settings leaves its
-/// sections in (their rows just lose the icon).
-fn assemble(apps: Vec<Item>, ignored: &[String], panes: Vec<Item>) -> Vec<Item> {
+/// The index: the apps not ignored, the sections, then the system commands when `commands` is on. The ignore list is
+/// for apps: ignoring System Settings leaves its sections in (their rows just lose the icon).
+fn assemble(apps: Vec<Item>, ignored: &[String], panes: Vec<Item>, commands: bool) -> Vec<Item> {
     let mut items = without_ignored(apps, ignored);
     items.extend(panes);
+    if commands {
+        items.extend(crate::commands::items());
+    }
     items
 }
 
@@ -161,7 +164,7 @@ static SCANNING: Mutex<()> = Mutex::new(());
 fn refresh(app: &AppHandle) {
     let _one = SCANNING.lock().unwrap();
     let s = crate::settings::current(app);
-    let items = assemble(index(&roots(&s.extra_folders)), &s.ignored_apps, crate::panes::index());
+    let items = assemble(index(&roots(&s.extra_folders)), &s.ignored_apps, crate::panes::index(), s.system_commands);
     let snapshot = {
         let state = app.state::<Mutex<Index>>();
         let mut idx = state.lock().unwrap();
@@ -237,7 +240,8 @@ pub fn setup(app: &AppHandle) {
     });
 }
 
-/// After Settings changed the extra folders (`folders`, which also re-targets the watcher) or the ignore list.
+/// After Settings changed the extra folders (`folders`, which also re-targets the watcher), the ignore list or the
+/// "System commands" switch.
 pub fn reload(app: &AppHandle, folders: bool) {
     let app = app.clone();
     std::thread::spawn(move || {
@@ -410,12 +414,25 @@ mod tests {
         let settings = "/System/Applications/System Settings.app";
         let pane = Item { kind: Kind::Pane, id: "pane:a".into(), name: "A".into(), alt_names: vec![], path: Some(settings.into()), confirm: None };
         let apps = vec![app_entry(Path::new(settings), ""), app_entry(Path::new("/Applications/Mail.app"), "")];
-        let items = assemble(apps, &[settings.into()], vec![pane.clone()]);
+        let items = assemble(apps, &[settings.into()], vec![pane.clone()], false);
         assert_eq!(find(&items, "pane:a"), Some(&pane));
         assert_eq!(find(&items, settings), None);
         assert!(!has_app(&items, settings), "the ignored app's icon is served");
         assert!(find(&items, "/Applications/Mail.app").is_some());
         assert!(find(&items, "pane:b").is_none() && find(&items, "").is_none() && find(&items, "pane:").is_none());
+    }
+
+    #[test]
+    fn index_without_commands_when_off() {
+        let apps = vec![app_entry(Path::new("/Applications/Mail.app"), "")];
+        let on = assemble(apps.clone(), &[], vec![], true);
+        assert_eq!(on.iter().filter(|i| i.kind == Kind::Command).count(), 6);
+        assert!(find(&on, "cmd:restart").is_some() && find(&on, "/Applications/Mail.app").is_some());
+        let off = assemble(apps, &[], vec![], false);
+        assert!(off.iter().all(|i| i.kind != Kind::Command), "{off:?}");
+        // `run` looks ids up here: a command id is refused while the switch is off
+        assert!(find(&off, "cmd:restart").is_none() && find(&off, "cmd:lock").is_none());
+        assert!(find(&off, "/Applications/Mail.app").is_some());
     }
 
     #[test]

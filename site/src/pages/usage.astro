@@ -8,6 +8,7 @@ const toc = [
   ['open', 'Open hop'],
   ['search', 'Search and launch'],
   ['system-settings', 'System Settings'],
+  ['system-commands', 'System commands'],
   ['calculator', 'Calculator'],
   ['shortcuts', 'Keyboard shortcuts'],
   ['settings', 'Settings'],
@@ -16,7 +17,8 @@ const toc = [
 const keys = [
   ['⌥Space', 'Show the palette over any app; press again to hide. Default hotkey.'],
   ['↑ ↓', 'Select a result.'],
-  ['Enter', 'Open the selected app or System Settings section.'],
+  ['Enter', 'Open the selected app or System Settings section, or run the selected command.'],
+  ['Enter, then Enter', 'Restart, Shut Down, Log Out or Empty Trash: the first arms the command, the second runs it. Any other key cancels.'],
   ['⌘Enter', 'Reveal the selected app in Finder. On a System Settings section, open it.'],
   ['⌘1 … ⌘9', 'Open the Nth result directly. Hold ⌘ to see the numbers.'],
   ['Enter on a result', 'Copy the calculator’s answer and hide the palette.'],
@@ -98,6 +100,22 @@ const keys = [
         </ul>
       </section>
 
+      <section id="system-commands">
+        <h2>System commands</h2>
+        <ul>
+          <li>Type a command's name: Lock Screen, Sleep, Restart, Shut Down, Log Out or Empty Trash.</li>
+          <li>Other names work too: <code>lock</code>, <code>reboot</code>, <code>shutdown</code>, <code>power off</code>, <code>logout</code>, <code>sign out</code> and <code>trash</code>. Names are English only.</li>
+          <li>Lock Screen and Sleep run when you press <kbd>Enter</kbd>.</li>
+          <li>Restart, Shut Down, Log Out and Empty Trash need a second <kbd>Enter</kbd>. The first one changes the row to “Press Enter again to restart” (or shut down, log out, empty the Trash).</li>
+          <li>Any other key, a click or a new query cancels. <kbd>⌘Enter</kbd> and <kbd>⌘1</kbd> to <kbd>⌘9</kbd> can ask, but never confirm.</li>
+          <li>Commands never show in the list of most used items you see with nothing typed, so a stray <kbd>Enter</kbd> there never runs one.</li>
+          <li>Apps with unsaved work can still stop a restart, shut down or log out.</li>
+          <li>Commands rank with the apps, and commands you use often rank higher.</li>
+        </ul>
+        <p class="note">The first Empty Trash asks you to let hop control Finder; macOS may ask the same for Restart, Shut Down and Log Out. hop is not signed with an Apple Developer ID, so macOS may ask again after an update. You can change your answer in System Settings › Privacy &amp; Security › Automation.</p>
+        <p>To keep commands out of the palette, turn off <strong>System commands</strong> in Settings.</p>
+      </section>
+
       <section id="calculator">
         <h2>Calculator</h2>
         <Shot name="palette-calc" alt="The hop palette with the query “12*7+3”: the first row shows the answer, “= 87”, with “Enter copy” at its right." caption="Typing a sum: the answer is the first row." />
@@ -131,6 +149,7 @@ const keys = [
           <li><strong>Start at login:</strong> on by default.</li>
           <li><strong>Extra folders to index:</strong> more places to look for apps.</li>
           <li><strong>Ignored apps:</strong> apps to hide from the palette.</li>
+          <li><strong>System commands:</strong> Lock Screen, Sleep, Restart and the others in the palette. On by default.</li>
           <li><strong>Theme:</strong> System, Light or Dark.</li>
           <li><strong>Palette style:</strong> Compact or Roomy.</li>
           <li><strong>Check every day:</strong> look for updates automatically.</li>

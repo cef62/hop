@@ -75,3 +75,12 @@ test("caps results at LIMIT", () => {
   const many = prepare(Array.from({ length: 50 }, (_, i) => app(`App ${i}`)));
   expect(search("app", many, {})).toHaveLength(LIMIT);
 });
+
+test("commands never join the empty-query list, however often used, but still rank when typed", () => {
+  const cmd = (id: string, name: string, confirm?: string): Item => ({ kind: "command", id, name, altNames: [], confirm });
+  const list = prepare([app("Safari"), app("Mail"), cmd("cmd:sleep", "Sleep"), cmd("cmd:empty-trash", "Empty Trash", "Press Enter again to empty the Trash")]);
+  const fr = { "/Applications/Safari.app": 0.8, "cmd:sleep": 1, "cmd:empty-trash": 0.5 };
+  // the habit "hotkey, Enter" on an empty palette must never sleep the Mac
+  expect(search("", list, fr).map((r) => r.id)).toEqual(["/Applications/Safari.app"]);
+  expect(search("sle", list, fr)[0].id).toBe("cmd:sleep");
+});

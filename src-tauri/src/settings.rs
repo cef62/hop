@@ -31,6 +31,8 @@ pub struct Settings {
     pub palette_style: String,
     /// the daily update check (update.rs); the toggle applies at the checker's next wake
     pub daily_update_check: bool,
+    /// Lock Screen, Sleep, Restart… in the index; off leaves them out, so `run` refuses them too
+    pub system_commands: bool,
     /// start at login was turned on by a first run (or must be left alone); never set from the window
     pub login_applied: bool,
     /// keys this version does not know, written back as they were
@@ -48,6 +50,7 @@ impl Default for Settings {
             theme: "system".into(),
             palette_style: "compact".into(),
             daily_update_check: true,
+            system_commands: true,
             login_applied: false,
             other: Default::default(),
         }
@@ -275,10 +278,17 @@ pub fn set_settings(app: AppHandle, patch: Value) -> Result<View, String> {
     if new.theme != old.theme {
         apply_theme(&app, &new.theme);
     }
-    if new.extra_folders != old.extra_folders || new.ignored_apps != old.ignored_apps {
-        crate::apps::reload(&app, new.extra_folders != old.extra_folders);
+    if let Some(folders) = reload(&old, &new) {
+        crate::apps::reload(&app, folders);
     }
     Ok(get_settings(app))
+}
+
+/// Whether the change from `old` to `new` needs a rescan of the index, and if so whether the folders changed (the
+/// watcher then follows them).
+fn reload(old: &Settings, new: &Settings) -> Option<bool> {
+    let folders = new.extra_folders != old.extra_folders;
+    (folders || new.ignored_apps != old.ignored_apps || new.system_commands != old.system_commands).then_some(folders)
 }
 
 /// A folder to index (`kind` "folder") or an app to ignore ("app"), from the system picker. Picked here rather than
@@ -289,6 +299,17 @@ pub fn pick_path(app: AppHandle, kind: String) -> Option<String> {
     let d = app.dialog().file().set_parent(&app.get_webview_window(LABEL)?);
     let picked = if kind == "app" { d.set_directory("/Applications").add_filter("Apps", &["app"]).blocking_pick_file() } else { d.blocking_pick_folder() };
     picked?.into_path().ok().map(|p| p.to_string_lossy().into_owned())
+}
+
+/// The Settings window's size: no scrollbar with one folder, one ignored app and one note (login or update).
+const WIDTH: f64 = 520.0;
+const HEIGHT: f64 = 800.0;
+const MIN_HEIGHT: f64 = 420.0;
+
+/// The window's inner height on a screen whose work area (without the menu bar and the Dock) is `work` points tall,
+/// with a title bar of `chrome` points: `HEIGHT`, or less so the whole window shows.
+fn fit_height(work: f64, chrome: f64) -> f64 {
+    HEIGHT.min(work - chrome).max(MIN_HEIGHT)
 }
 
 /// Opens the Settings window, or brings it to the front. The palette hides first (plan §4.1).
@@ -304,14 +325,23 @@ pub fn open(app: &AppHandle) {
     }
     let built = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("settings.html".into()))
         .title("hop Settings")
-        .inner_size(520.0, 720.0) // no scrollbar with one folder, one ignored app and one note (login or update)
-        .min_inner_size(420.0, 420.0)
+        .inner_size(WIDTH, HEIGHT)
+        .min_inner_size(420.0, MIN_HEIGHT)
         .minimizable(false)
         .maximizable(false)
         .center()
         .build();
     match built {
         Ok(w) => {
+            // a 900 pt screen with the Dock leaves less than the page needs: fit the work area, and the page scrolls
+            if let (Ok(Some(m)), Ok(outer), Ok(inner)) = (w.current_monitor(), w.outer_size(), w.inner_size()) {
+                let k = m.scale_factor();
+                let h = fit_height(m.work_area().size.height as f64 / k, (outer.height as f64 - inner.height as f64) / k);
+                if h < HEIGHT {
+                    w.set_size(tauri::LogicalSize::new(WIDTH, h)).ok();
+                    w.center().ok();
+                }
+            }
             w.set_focus().ok();
         }
         Err(e) => eprintln!("hop: could not open Settings ({e})"),
@@ -452,6 +482,51 @@ mod tests {
         for f in ["/Volumes/Apps", "/opt/apps", &format!("{home}/Apps")] {
             assert!(!too_broad(f), "{f}");
         }
+    }
+
+    #[test]
+    fn settings_default_turns_commands_on() {
+        assert!(Settings::default().system_commands);
+        assert_eq!(serde_json::to_value(Settings::default()).unwrap()["systemCommands"], json!(true));
+    }
+
+    #[test]
+    fn old_settings_file_keeps_commands_on() {
+        let tmp = tempfile::tempdir().unwrap();
+        let p = tmp.path().join("settings.json");
+        // a 0.2.0 file: every key it knew, none of the new ones
+        std::fs::write(&p, r#"{"version":1,"hotkey":"Alt+Space","extraFolders":[],"ignoredApps":[],"theme":"dark","paletteStyle":"roomy","dailyUpdateCheck":false,"loginApplied":true}"#).unwrap();
+        let (s, _) = load(&p);
+        assert!(s.system_commands && s.other.is_empty());
+        assert_eq!((s.theme.as_str(), s.daily_update_check), ("dark", false));
+        // the switch is saved and read back; a wrong type falls back to on
+        let (off, bad) = merge(&s, &json!({"systemCommands": false}));
+        assert!(bad.is_empty() && !off.system_commands);
+        save(&p, &off).unwrap();
+        assert!(!load(&p).0.system_commands);
+        std::fs::write(&p, r#"{"version":1,"systemCommands":"no","loginApplied":true}"#).unwrap();
+        assert!(load(&p).0.system_commands);
+    }
+
+    #[test]
+    fn only_index_changes_rescan_and_only_folders_move_the_watcher() {
+        let old = Settings::default();
+        let with = |patch: Value| merge(&old, &patch).0;
+        assert_eq!(reload(&old, &with(json!({"systemCommands": false}))), Some(false));
+        assert_eq!(reload(&old, &with(json!({"ignoredApps": ["/Applications/X.app"]}))), Some(false));
+        assert_eq!(reload(&old, &with(json!({"extraFolders": ["/Volumes/Apps"]}))), Some(true));
+        for patch in [json!({"theme": "dark"}), json!({"paletteStyle": "roomy"}), json!({"dailyUpdateCheck": false}), json!({})] {
+            assert_eq!(reload(&old, &with(patch.clone())), None, "{patch}");
+        }
+    }
+
+    #[test]
+    fn settings_fits_a_small_screen_and_never_grows_past_its_size() {
+        // 1440×900 with the Dock at the bottom: about 805 pt of work area, a 28 pt title bar
+        assert_eq!(fit_height(805.0, 28.0), 777.0);
+        assert_eq!(fit_height(1415.0, 28.0), HEIGHT);
+        assert_eq!(fit_height(828.0, 28.0), HEIGHT);
+        assert_eq!(fit_height(300.0, 28.0), MIN_HEIGHT);
     }
 
     #[test]

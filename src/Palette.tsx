@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { calc } from "./calc";
+import { live, step, type Event, type State } from "./confirm";
 import { paletteKey, type Actions } from "./keys";
 import { move, prepare, search, type Frecency, type Item } from "./rank";
 
@@ -19,6 +20,8 @@ type ViewProps = {
   /** the calculator's answer to the query: a row above the apps, so row indexes count it */
   result?: string | null;
   sel: number;
+  /** the command waiting for its second Enter */
+  armed?: string | null;
   error: string;
   /** ⌘ is held: rows 1–9 show their ⌘N key in place of "↵ open" */
   cmd?: boolean;
@@ -46,10 +49,54 @@ export function command(i: number, result: string | null, rows: Item[], reveal: 
 }
 
 /** The footer's keys for the selected row: only an app has a Finder location to reveal. */
-const footer = (r: Item | string | undefined) =>
-  typeof r === "string" ? "↵ copy · ⌘1–9 open · esc close" : r && r.kind !== "app" ? "↵ open · ⌘1–9 open · esc close" : "↵ open · ⌘↵ reveal in Finder · ⌘1–9 open · esc close";
+const footer = (r: Item | string | undefined, armed: string | null | undefined) =>
+  typeof r === "string"
+    ? "↵ copy · ⌘1–9 open · esc close"
+    : r?.confirm && r.id === armed
+      ? "↵ confirm · esc close"
+      : r?.kind === "command"
+        ? "↵ run · ⌘1–9 open · esc close"
+        : r && r.kind !== "app"
+          ? "↵ open · ⌘1–9 open · esc close"
+          : "↵ open · ⌘↵ reveal in Finder · ⌘1–9 open · esc close";
 
-export function PaletteView({ style, query, rows, result, sel, error, cmd, update, onQuery, onOpen, onUpdate, input, card, list }: ViewProps) {
+/** Command glyphs (24×24 strokes), drawn in place of an app icon. */
+const GLYPHS: Record<string, React.ReactNode> = {
+  "cmd:lock": (
+    <>
+      <rect x="5" y="11" width="14" height="10" rx="2" />
+      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+    </>
+  ),
+  "cmd:sleep": <path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z" />,
+  "cmd:restart": (
+    <>
+      <path d="M20 12a8 8 0 1 1-2.34-5.66" />
+      <path d="M20 4v5h-5" />
+    </>
+  ),
+  "cmd:shutdown": (
+    <>
+      <path d="M12 3v9" />
+      <path d="M6.3 6.3a8 8 0 1 0 11.4 0" />
+    </>
+  ),
+  "cmd:logout": (
+    <>
+      <path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4" />
+      <path d="M14 8l4 4-4 4M18 12H9" />
+    </>
+  ),
+  "cmd:empty-trash": (
+    <>
+      <path d="M4 7h16M9 7V4h6v3" />
+      <path d="M6 7l1 13h10l1-13" />
+    </>
+  ),
+};
+
+export function PaletteView({ style, query, rows, result, sel, armed, error, cmd, update, onQuery, onOpen, onUpdate, input, card, list }: ViewProps) {
+  const prompt = rows.find((a) => a.confirm && a.id === armed)?.confirm ?? "";
   const off = result == null ? 0 : 1;
   const count = rows.length + off;
   const option = (i: number) => ({
@@ -109,28 +156,41 @@ export function PaletteView({ style, query, rows, result, sel, error, cmd, updat
               {hint(0, "copy")}
             </li>
           )}
-          {rows.map((a, j) => (
-            // every section shares the System Settings path: the id is the only unique key
-            <li key={a.id} {...option(j + off)}>
-              <span className="icon">
-                <img
-                  src={convertFileSrc(a.path ?? "", "icon")}
-                  alt=""
-                  loading="lazy"
-                  onLoad={(e) => (e.currentTarget.dataset.loaded = "")}
-                  onError={(e) => (e.currentTarget.style.visibility = "hidden")}
-                />
-              </span>
-              <span className="name">{a.name}</span>
-              {a.kind === "pane" && <span className="tag">System Settings</span>}
-              {hint(j + off, "open")}
-            </li>
-          ))}
+          {rows.map((a, j) => {
+            const armedRow = a.confirm && a.id === armed;
+            return (
+              // every section shares the System Settings path: the id is the only unique key
+              <li key={a.id} {...option(j + off)} aria-label={armedRow ? a.confirm : undefined}>
+                {a.kind === "command" ? (
+                  <span className="icon glyph" aria-hidden="true">
+                    <svg viewBox="0 0 24 24">{GLYPHS[a.id]}</svg>
+                  </span>
+                ) : (
+                  <span className="icon">
+                    <img
+                      src={convertFileSrc(a.path ?? "", "icon")}
+                      alt=""
+                      loading="lazy"
+                      onLoad={(e) => (e.currentTarget.dataset.loaded = "")}
+                      onError={(e) => (e.currentTarget.style.visibility = "hidden")}
+                    />
+                  </span>
+                )}
+                <span className="name">{armedRow ? a.confirm : a.name}</span>
+                {a.kind === "pane" && <span className="tag">System Settings</span>}
+                {hint(j + off, armedRow ? "confirm" : a.kind === "command" ? "run" : "open")}
+              </li>
+            );
+          })}
         </ul>
       )}
+      {/* present while empty, so VoiceOver announces the prompt when a command is armed */}
+      <p className="status" role="status">
+        {prompt}
+      </p>
       <div className="footer">
         <span className="keys" aria-hidden="true">
-          {footer(rowAt(sel, result, rows))}
+          {footer(rowAt(sel, result, rows), armed)}
         </span>
         {update && (
           // not a Tab stop (the input keeps the focus): ⌘U is its key
@@ -150,6 +210,7 @@ export function Palette() {
   const [query, setQuery] = useState("");
   const [sel, setSel] = useState(0);
   const [error, setError] = useState("");
+  const [armed, setArmed] = useState<State["armed"]>(null);
   const [update, setUpdate] = useState<string | null>(null);
   const [cmd, setCmd] = useState(false);
   const input = useRef<HTMLInputElement>(null);
@@ -164,16 +225,21 @@ export function Palette() {
   const count = total(rows, result);
   const at = Math.min(sel, Math.max(count - 1, 0)); // the list can shrink under the selection (app removed)
 
-  const open = (i: number, reveal = false) => {
-    const c = command(i, result, rows, reveal);
+  const row = (i: number) => rowAt(i, result, rows);
+  // through a ref: the window listeners below are set up once and must see this render's state
+  const send = useRef<(ev: Event) => void>(null!);
+  send.current = (ev) => {
+    const o = step({ armed, sel: at }, ev, row, query);
+    setArmed(o.armed);
+    setSel(o.sel);
+    const c = o.run === null ? null : command(o.run, result, rows, ev.type === "enter" && ev.meta); // ⌘Enter reveals
     if (c) invoke(...c).catch((e) => setError(String(e)));
   };
   const actions = useRef<Actions>(null!);
   actions.current = {
     hide: () => invoke("hide_palette"),
     move: (d) => setSel(move(at, d, count)),
-    open: (reveal) => open(at, reveal),
-    openAt: (i) => open(i),
+    send: (ev) => send.current(ev),
     settings: () => invoke("open_settings"),
     update: () => update && invoke("open_whatsnew"),
   };
@@ -195,8 +261,8 @@ export function Palette() {
       listen<Look>("palette-hidden", (e) => {
         setStyle(e.payload.style); // a changed setting applies while hidden, before the next show paints
         setQuery("");
-        setSel(0);
         setError("");
+        send.current({ type: "hidden" });
         setCmd(false);
       }),
     ];
@@ -207,6 +273,7 @@ export function Palette() {
     const onBlur = () => setCmd(false); // a ⌘ keyup that lands in another window never reaches us
     // the window is larger than the card and its transparent margin still takes clicks: treat them as a click outside
     const onDown = (e: PointerEvent) => {
+      send.current({ type: "pointer" }); // a click, even on the armed row, only arms again: it never confirms
       // composedPath is fixed at dispatch, so a node React removes during the event still counts as inside
       if (!card.current || !e.composedPath().includes(card.current)) invoke("hide_palette");
     };
@@ -257,6 +324,7 @@ export function Palette() {
       rows={rows}
       result={result}
       sel={at}
+      armed={live({ armed, sel: at }, row, query)}
       error={error}
       cmd={cmd}
       update={update}
@@ -264,10 +332,10 @@ export function Palette() {
       onQuery={(q, t) => {
         if (perf.current) keyAt.current = t;
         setQuery(q);
-        setSel(0);
         setError("");
+        send.current({ type: "query" });
       }}
-      onOpen={(i) => open(i)}
+      onOpen={(i) => send.current({ type: "click", i })}
       input={input}
       card={card}
       list={list}

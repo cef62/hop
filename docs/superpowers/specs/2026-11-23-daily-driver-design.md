@@ -79,6 +79,7 @@ The calculator history is frontend state plus a small Rust store, independent of
 | Empty Trash | trash | yes | Apple Event to Finder (`empty trash`). The first use triggers the macOS Automation prompt for Finder: add `NSAppleEventsUsageDescription` to the bundle. |
 
 - The builder checks whether the `loginwindow` events also trigger an Automation prompt. If they do, the usage description covers them, and the PR notes the one-time prompt.
+- Built: tauri signs the bundle with the hardened runtime (`flags=0x10002(adhoc,runtime)` on 0.2.0), which refuses every Apple Event without the `com.apple.security.automation.apple-events` entitlement, so the bundle gets `src-tauri/Entitlements.plist`. Events go out without waiting for a reply (Empty Trash on a large Trash replies only when done); a refused send (-1743) names Privacy & Security › Automation in the error, a missing target (-600) says the app is not running. `run` is an async command, so a first-use Automation prompt never blocks the main thread; the palette hides on the main thread.
 - Icons: small inline SVG glyphs in the palette's style, `aria-hidden`.
 - The commands do not record frecency for the confirm step, only when they run.
 
@@ -87,6 +88,8 @@ The calculator history is frontend state plus a small Rust store, independent of
 - Frontend state `armed: id | null`. Enter (or ⌘N) on a row whose command needs confirmation arms it. The row then reads "Press Enter again to restart" (per command), and the hint reads "↵ confirm".
 - Enter on the armed row runs it. Any other key, a query change, a selection change, a click elsewhere, or hiding the palette disarms it.
 - The transitions are a pure function (like `paletteKey`) with a unit test. Disarming on hide goes through the existing `palette-hidden` reset.
+- Built: ⌘Enter, ⌘N and a click arm a command (and select its row) but never confirm; a held Enter's auto-repeat never confirms either (holding Enter would otherwise restart). A command is armed only while it is the selected row: a list that changes under it (an app installed, the switch turned off) disarms it. All of it is one pure reducer, `step` in `src/confirm.ts`. Command rows' hint and footer read "↵ run".
+- Built: commands never join the empty-query list of most used items, however often used: an empty palette carries no intent, and one habitual Enter there must not lock or sleep the Mac.
 - Accessibility: the armed row's accessible name changes to the confirm prompt, and a polite live region announces it.
 
 ### Calculator history
@@ -121,7 +124,7 @@ Each PR keeps README, the site's Usage and home pages and the tests current. Rel
 
 ## Calls made after the builder check
 
-- ⌘Enter on a section or command acts like Enter; `reveal` stays an app-only path. On an armed row only a plain Enter confirms; ⌘Enter, like any other key, disarms.
+- ⌘Enter on a section or command acts like Enter; `reveal` stays an app-only path. On an armed row only a plain Enter confirms; ⌘Enter arms, like ⌘N, and never confirms (built in round 1: on an armed row it keeps it armed).
 - Row order: live result, history rows, then items. ⌘1–9 number rows in that order (generalize `rowAt`/`total` from one leading result row to a leading block). A history row equal to the live row is not shown. On `=` the first history row is selected.
 - macOS 13 or later for sections (ExtensionKit). On older systems the scan finds nothing and sections are absent; no `.prefPane` fallback.
 - Command execution: Lock Screen and Sleep hide the palette, then run. Restart, Shut Down, Log Out and Empty Trash send their Apple Event, hide on success, and keep the palette open with the error if sending fails. Apps that later cancel a restart for unsaved work are macOS's business, not an error.

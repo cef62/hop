@@ -138,6 +138,9 @@ static SHOW_STARTED: Mutex<Option<Instant>> = Mutex::new(None);
 
 /// Runs a `Visibility` transition and performs the step it returns. `blur`: see `give_back`.
 fn apply(app: &AppHandle, blur: bool, step: impl FnOnce(&mut Visibility) -> Step) {
+    // AppKit (the window, app.hide, activation) only on the main thread: an async command goes through `on_main`
+    #[cfg(target_os = "macos")]
+    debug_assert!(objc2::MainThreadMarker::new().is_some(), "palette shown or hidden off the main thread");
     let step = step(&mut app.state::<Mutex<Visibility>>().lock().unwrap());
     let Some(w) = main_window(app) else { return };
     match step {
@@ -206,6 +209,15 @@ pub fn hide(app: &AppHandle) {
 /// Hides the palette without handing the focus to another app: Settings or What's new is about to take it.
 pub fn hide_for_window(app: &AppHandle) {
     apply(app, true, Visibility::hide);
+}
+
+/// Runs `f` on the main thread and waits for it: AppKit calls from an async command's worker thread. Never call it from
+/// the main thread, which would wait on itself. `None`: the event loop is gone (hop is quitting).
+pub fn on_main<R: Send + 'static>(app: &AppHandle, f: impl FnOnce(&AppHandle) -> R + Send + 'static) -> Option<R> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    let a = app.clone();
+    app.run_on_main_thread(move || drop(tx.send(f(&a)))).ok()?;
+    rx.recv().ok()
 }
 
 #[tauri::command]

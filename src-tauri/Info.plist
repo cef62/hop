@@ -5,5 +5,8 @@
 	<!-- LaunchServices starts hop as an agent app; lib.rs sets the same Accessory policy before tao finishes launching -->
 	<key>LSUIElement</key>
 	<true/>
+	<!-- the Automation prompt's text, shown on the first Empty Trash (Finder) and, if macOS asks, Restart/Shut Down/Log Out -->
+	<key>NSAppleEventsUsageDescription</key>
+	<string>hop empties the Trash and asks macOS to restart, shut down or log out when you choose those commands.</string>
 </dict>
 </plist>

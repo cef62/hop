@@ -2,6 +2,7 @@ use tauri::Manager;
 
 pub mod apps;
 mod clipboard;
+mod commands;
 mod history;
 mod hotkey;
 mod icons;

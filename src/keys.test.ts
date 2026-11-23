@@ -1,8 +1,10 @@
 import { expect, test, vi } from "vitest";
 import { paletteKey } from "./keys";
 
-const ev = (key: string, isComposing = false, keyCode = 0, metaKey = false, code = "", shiftKey = false) => ({ key, code, isComposing, keyCode, metaKey, shiftKey, preventDefault: vi.fn() });
-const actions = () => ({ hide: vi.fn(), move: vi.fn(), open: vi.fn(), openAt: vi.fn(), settings: vi.fn(), update: vi.fn() });
+const ev = (key: string, isComposing = false, keyCode = 0, metaKey = false, code = "", shiftKey = false, repeat = false) => ({ key, code, isComposing, keyCode, metaKey, shiftKey, repeat, preventDefault: vi.fn() });
+const actions = () => ({ hide: vi.fn(), move: vi.fn(), send: vi.fn(), settings: vi.fn(), update: vi.fn() });
+/** The palette events of `type` the keys sent. */
+const sent = (a: ReturnType<typeof actions>, type: string) => a.send.mock.calls.map((c) => c[0]).filter((e) => e.type === type);
 
 test("Esc hides from any element, Tab never moves focus off the input", () => {
   const a = actions();
@@ -21,7 +23,28 @@ test("arrows move the selection, Enter opens, ⌘Enter reveals", () => {
   expect(a.move.mock.calls).toEqual([[1], [-1]]);
   paletteKey(ev("Enter"), a);
   paletteKey(ev("Enter", false, 0, true), a);
-  expect(a.open.mock.calls).toEqual([[false], [true]]);
+  expect(sent(a, "enter")).toEqual([
+    { type: "enter", meta: false, repeat: false },
+    { type: "enter", meta: true, repeat: false },
+  ]);
+  // a held Enter's repeats are told apart: they must not confirm an armed command
+  paletteKey(ev("Enter", false, 0, false, "", false, true), a);
+  expect(sent(a, "enter")[2]).toEqual({ type: "enter", meta: false, repeat: true });
+});
+
+test("any other key disarms", () => {
+  const disarming = [ev("a"), ev("ArrowDown"), ev("ArrowUp"), ev("Escape"), ev("Tab"), ev("Backspace"), ev(" "), ev("1", false, 0, true, "Digit1"), ev("v", false, 0, true), ev(",", false, 0, true), ev("x", true)];
+  for (const e of disarming) {
+    const a = actions();
+    paletteKey(e, a);
+    expect(sent(a, "key"), e.key).toEqual([{ type: "key" }]);
+  }
+  // Enter confirms or arms itself; a bare modifier is half of a chord (⌘ shows the ⌘N hints)
+  for (const e of [ev("Enter"), ev("Enter", false, 0, true), ev("Meta", false, 0, true), ev("Shift"), ev("Control"), ev("Alt"), ev("CapsLock")]) {
+    const a = actions();
+    paletteKey(e, a);
+    expect(sent(a, "key"), e.key).toEqual([]);
+  }
 });
 
 test("keys during IME composition belong to the IME, not the palette", () => {
@@ -32,7 +55,7 @@ test("keys during IME composition belong to the IME, not the palette", () => {
   }
   expect(a.hide).not.toHaveBeenCalled();
   expect(a.move).not.toHaveBeenCalled();
-  expect(a.open).not.toHaveBeenCalled();
+  expect(sent(a, "enter")).toEqual([]);
 });
 
 test("⌘, opens Settings, a plain comma is typed", () => {
@@ -64,7 +87,7 @@ test("⌘1…⌘9 open that row, ⌘⇧digit is left to the system", () => {
   paletteKey(shot, a);
   expect(shot.preventDefault).not.toHaveBeenCalled();
   paletteKey(ev("9", false, 0, true, "Digit9"), a);
-  expect(a.openAt.mock.calls).toEqual([[0], [8]]);
+  expect(sent(a, "nth")).toEqual([{ type: "nth", i: 0 }, { type: "nth", i: 8 }]);
   expect(one.preventDefault).toHaveBeenCalled();
 });
 
@@ -74,7 +97,7 @@ test("a digit without ⌘ is typed, ⌘0 is not ours", () => {
   paletteKey(typed, a);
   const zero = ev("0", false, 0, true, "Digit0");
   paletteKey(zero, a);
-  expect(a.openAt).not.toHaveBeenCalled();
+  expect(sent(a, "nth")).toEqual([]);
   expect(typed.preventDefault).not.toHaveBeenCalled();
   expect(zero.preventDefault).not.toHaveBeenCalled();
 });
@@ -82,12 +105,12 @@ test("a digit without ⌘ is typed, ⌘0 is not ours", () => {
 test("AZERTY: ⌘& is Digit1", () => {
   const a = actions();
   paletteKey(ev("&", false, 0, true, "Digit1"), a);
-  expect(a.openAt).toHaveBeenCalledWith(0);
+  expect(sent(a, "nth")).toEqual([{ type: "nth", i: 0 }]);
 });
 
 test("⌘1 during IME composition belongs to the IME", () => {
   const a = actions();
   paletteKey(ev("1", true, 0, true, "Digit1"), a);
   paletteKey(ev("1", false, 229, true, "Digit1"), a);
-  expect(a.openAt).not.toHaveBeenCalled();
+  expect(sent(a, "nth")).toEqual([]);
 });

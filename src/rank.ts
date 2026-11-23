@@ -28,8 +28,8 @@ export const LIMIT = 20;
 export const boost = (f = 0): number => (0.9 * f) / (f + 1);
 
 /**
- * The palette's rows for `query`. Empty: up to `RECENT` apps with any frecency, most used first (nothing without
- * history). Otherwise: best match tier over name and alt names, plus the frecency boost; then shorter name, then A–Z.
+ * The palette's rows for `query`. Empty: up to `RECENT` apps and sections with any frecency (never commands), most
+ * used first (nothing without history). Otherwise: best match tier over name and alt names, plus the frecency boost; then shorter name, then A–Z.
  */
 export function search(query: string, items: Prepared[], frecency: Frecency, limit = LIMIT): Item[] {
   const q = fold(query.trim());
@@ -37,7 +37,7 @@ export function search(query: string, items: Prepared[], frecency: Frecency, lim
   if (!q) {
     return items
       .map((i) => i.item)
-      .filter((a) => fr(a) > 0)
+      .filter((a) => fr(a) > 0 && a.kind !== "command") // nothing typed is no intent: one Enter must not lock or sleep
       .sort((a, b) => fr(b) - fr(a))
       .slice(0, RECENT);
   }
