@@ -39,7 +39,7 @@ hop has no Dock icon: press **⌥Space** (the default hotkey) or click its menu-
   form (`9.00719925474e+15`) when that rounding reaches the units.
 - Calculator history: hop keeps the last 20 results you copied. Under a sum, the latest 5 show below its answer as
   `expression = result`; type `=` alone to list all 20. A sum that waits for its last number (`1+`, `12*`, `(`) lists
-  the latest 5 too. **Enter** (or **⌘N**, or a click) on one puts its expression in the field to edit. **⌘Enter**
+  the latest 5 too, unless an item matches what you typed (`7-` lists 7-Zip). **Enter** (or **⌘N**, or a click) on one puts its expression in the field to edit. **⌘Enter**
   inserts its result: after `1+` it makes `1+87`, on `=` or an empty field it replaces them with the result. Under a
   complete sum (`1+2`) or a number there is no place for it, so **⌘Enter** does nothing there and the footer does not
   offer it. Settings › Calculator turns the answer and the history off, and `=` becomes a plain search.

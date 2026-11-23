@@ -100,6 +100,7 @@ The calculator history is frontend state plus a small Rust store, independent of
   - Query is a sum (`calc` not null): the live result row, then up to 5 history rows.
   - Query is exactly `=`: up to 20 history rows, no live row.
   - Query is an open sum (ends in an operator or `(`: `1+`, `12*`, `(`): up to 5 history rows, no live row.
+  - Built: an open sum lists history only when no item matches the query (`7-` with 7-Zip installed lists 7-Zip, and Enter opens it). `leads` stays pure: the palette passes `matched` (`rows.length > 0`). A complete sum and `=` ignore it.
   - History rows show `expr = result`, with the hint "↵ edit". Built: while ⌘ is held every row shows its ⌘N number, as before; "⌘↵ insert" is in the footer, and only where an insert is possible.
 - Enter / ⌘N on a history row sets the query to its expression, keeps the palette open, and puts the caret at the end. ⌘Enter inserts its result (rule below).
 - `calc` accepts exponent literals (`1.2e+21`), so any shown result can be fed back in. A bare literal still gives no row (no operator).
