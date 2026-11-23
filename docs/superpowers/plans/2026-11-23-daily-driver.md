@@ -231,3 +231,12 @@ Retrospectives, newest last. Lessons carried in from v2 (`docs/v2-plan.md`): gat
 - Pure seams again made runtime decisions testable (`open_args`). Mutation counts: 21 → 45 killed after fixes.
 - Fixed inline after round 2: Norwegian `nb`/`nn` → `no`, second junk-name fixture. Deferred: Headphones (no name source).
 - Adjustments for PR 2: the brief lists the real-data check (what `loginwindow`/Finder Apple Events return, the actual `SACLockScreenImmediate` symbol presence on this Mac) as read-only probes the implementer may run; Opus implements (native code); the review attack list starts from the plan's Review Focus 2 and every disarm path.
+
+### After PR 2 (#22, merged 2026-11-23)
+
+- Two review rounds (FAIL with 1 Major, then PASS) plus a short Minor round. The Major was a product hole the plan missed: commands in the empty-query recent list made one Enter lock or sleep the Mac. Lesson: for anything destructive, the plan lists every path that can reach it (typed query, empty query, ⌘N, click, held key, reorder), not only the happy path.
+- The read-only real-data probe paid off: the installed app is signed with the hardened runtime, so Apple Events needed the `automation.apple-events` entitlement. Without that probe every session command would have failed in release.
+- The SAFETY rule (never execute a command on the owner's Mac) held across four agents.
+- A pure reducer (`confirm.ts` `step`/`live`) turned 17 untestable glue mutations into 15 caught; the rest are one-line forwards. Pattern for the future: put every decision in a reducer, keep components as forwards.
+- Process slip: one fix round ran the gate on the final tree only. The per-commit check found no red commit, but briefs now say "gate before each commit" and reviewers spot-check it.
+- Adjustment for PR 3: a cheaper split — Sonnet implements (the plan is detailed and frontend-heavy), Opus reviews once; the brief lists every path into "replace the query" and "insert a result" up front, and asks for the reducer pattern for history rows.

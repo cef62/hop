@@ -3,7 +3,7 @@ const MAX = 200;
 
 /**
  * The query as a maths expression: `+ - * / % ^`, parentheses, unary minus and plus, `×` and `÷`. Null unless the whole
- * query parses and has a binary operator, so a bare number ("2024", "-5") stays an app search, and for a non-finite
+ * query parses and has a binary operator (numbers may carry an exponent, `1.2e+21`, so any result shown can be typed back), so a bare number ("2024", "-5") stays an app search, and for a non-finite
  * result (÷0, overflow). Safe integers (below 2^53) show in full; anything else rounds to 12 significant digits (hiding
  * float noise such as 0.1+0.2), in exponent form from 1e11 up and for tiny results ("1e+21").
  * shortcut: plain float maths, so a step past 2^53 loses units even when the answer is small ("10^16+1-10^16" is 0);
@@ -12,7 +12,7 @@ const MAX = 200;
  */
 export function calc(query: string): string | null {
   if (query.length > MAX) return null;
-  const t = query.replace(/[×÷]/g, (c) => (c === "×" ? "*" : "/")).match(/\d+(?:\.\d+)?|\.\d+|\S/g) ?? [];
+  const t = query.replace(/[×÷]/g, (c) => (c === "×" ? "*" : "/")).match(/(?:\d+(?:\.\d+)?|\.\d+)(?:e[+-]?\d+)?|\S/gi) ?? [];
   let i = 0;
   let ops = 0;
   let bad = false;

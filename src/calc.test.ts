@@ -44,6 +44,25 @@ const cases: [string, string | null][] = [
   ["10^20", "1e+20"],
   ["2^100", "1.26765060023e+30"],
   ["1/10^7", "1e-7"],
+  // exponent literals: a shown result can be fed back in
+  ["1.84467440737e+19*1", "1.84467440737e+19"],
+  ["100-1e+2", "0"],
+  ["2e3+1", "2001"],
+  ["1e-7*10", "0.000001"],
+  ["1E3+1", "1001"],
+  ["1e+21*1", "1e+21"],
+  [".5e2+0", "50"],
+  ["1e-400*1", "0"], // underflows to 0, a finite result
+  ["-1e+21*1", "-1e+21"],
+  ["1e5", null], // a bare literal has no operator: still an app search
+  ["1e", null],
+  ["1e+", null],
+  ["e+5+1", null],
+  ["5.e2+0", null], // "5." is no number, with or without an exponent
+  ["1e400*1", null], // Infinity
+  ["1e5e5+1", null],
+  ["1e 5+1", null],
+  ["1e+2.5+1", null],
   // whitespace and aliases
   [" 2 + 3 * 4 ", "14"],
   ["6×7", "42"],
@@ -80,4 +99,29 @@ const cases: [string, string | null][] = [
 
 test.each(cases)("calc(%j) = %j", (query, want) => {
   expect(calc(query)).toBe(want);
+});
+
+test("any result, fed back in, gives itself again (every exponent shape)", () => {
+  let seed = 12345;
+  const rnd = () => (seed = (seed * 1664525 + 1013904223) % 2 ** 32) / 2 ** 32;
+  let seen = 0;
+  for (let n = 0; n < 1000; n++) {
+    const e = Math.floor(rnd() * 80) - 40;
+    const a = `${rnd() < 0.5 ? "-" : ""}${(rnd() * 10 ** Math.floor(rnd() * 6)).toFixed(Math.floor(rnd() * 5))}`;
+    const r = calc(`${a}*10^${e}+${Math.floor(rnd() * 3)}`);
+    if (r === null) continue;
+    seen++;
+    const back = calc(`${r}*1`);
+    // one documented exception: a non-integer from 1e11 up rounds to an integer shown in exponent form ("7.63316e+12",
+    // not exact), and typed back it is a safe integer, which calc shows in full: the same number, other digits
+    const rounded = r.includes("e") && Number.isSafeInteger(Number(r));
+    expect(back, r).toBe(rounded ? String(Number(r)) : r);
+    expect(Number(back)).toBe(Number(r));
+  }
+  expect(seen).toBeGreaterThan(900);
+});
+
+test("a non-integer from 1e11 up rounds to an integer in exponent form; typed back it shows in full", () => {
+  expect(calc("123456789012.5*1")).toBe("1.23456789013e+11");
+  expect(calc("1.23456789013e+11*1")).toBe("123456789013");
 });
