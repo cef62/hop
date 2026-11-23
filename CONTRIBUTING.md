@@ -3,7 +3,7 @@
 ## Making a change
 
 1. Branch from `main` (`git checkout -b feat/short-name`, or `fix/…`, `docs/…`, `ci/…`). Never commit to `main` directly.
-2. Write the failing test first when the change is logic, then the code.
+2. Write the failing test first when the change is logic, then the code. Tests of the real `Palette` or `SettingsPage` (glue between DOM events and the pure modules) go in `*.glue.test.tsx` with `// @vitest-environment happy-dom` on top: only those files run in happy-dom, the rest keep the node environment.
 3. Run the quality gate below.
 4. **Add a changeset** for anything a user can notice (behaviour, settings, docs that change what the user is told to do): `pnpm changeset`, pick `patch` or `minor`, write one sentence in the past tense from the user's point of view. Commit the generated `.changeset/*.md` with your change.
 5. Open a pull request against `main` and get an adversarial review (below). CI must be green.
