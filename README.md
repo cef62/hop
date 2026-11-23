@@ -26,10 +26,11 @@ hop has no Dock icon: press **⌥Space** (the default hotkey) or click its menu-
 - System commands: Lock Screen (`lock`), Sleep, Restart (`reboot`), Shut Down (`shutdown`, `power off`), Log Out
   (`logout`, `sign out`) and Empty Trash (`trash`), matched by their English names and rank with the apps. Lock
   Screen and Sleep run on **Enter**. Restart, Shut Down, Log Out and Empty Trash ask for a second **Enter**: the row
-  reads "Press Enter again to restart", and any other key, a click or a new query cancels. Apps with unsaved work can
-  still stop a restart, shut down or log out. The first Empty Trash asks you to let hop control Finder (macOS may ask
-  for Restart, Shut Down and Log Out too); hop is not signed with an Apple Developer ID, so macOS may ask again after
-  an update. Settings › System commands turns them off.
+  reads "Press Enter again to restart", and any other key, a click or a new query cancels. Commands never show in the
+  list you see with nothing typed. Apps with unsaved work can still stop a restart, shut down or log out. The first
+  Empty Trash asks you to let hop control Finder (macOS may ask for Restart, Shut Down and Log Out too); hop is not
+  signed with an Apple Developer ID, so macOS may ask again after an update. Settings › System commands turns them
+  off.
 - Calculator: type a sum such as `2+3*4` and the answer shows above the apps; **Enter** (or **⌘1**) copies it and
   hides the palette, ready to paste. It takes `+ - * / % ^` (`%` is the remainder), parentheses and decimals with a
   `.`; `×` and `÷` work too. A bare number such as `2024` stays an app search. Whole numbers up to 9007199254740991 are exact; other
