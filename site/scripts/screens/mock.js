@@ -24,7 +24,7 @@
     ['cmd:logout', 'Log Out', ['logout', 'sign out'], 'Press Enter again to log out'], ['cmd:empty-trash', 'Empty Trash', ['trash'], 'Press Enter again to empty the Trash'],
   ].map(([id, name, altNames, confirm]) => ({ kind: 'command', id, name, altNames, ...(confirm && { confirm }) }));
   // newest first, as calc_history sends them
-  const HISTORY = [['1299/12', '108.25'], ['(48+16)*3', '192'], ['18% of 240', '43.2'], ['2^10', '1024'], ['12*7+3', '87']].map(([expr, result]) => ({ expr, result }));
+  const HISTORY = [['1299/12', '108.25'], ['(48+16)*3', '192'], ['240*0.18', '43.2'], ['2^10', '1024'], ['12*7+3', '87']].map(([expr, result]) => ({ expr, result }));
   const HUES = { Safari: 205, Mail: 215, Maps: 140, Notes: 48, Calendar: 5, Music: 345, Photos: 30, 'System Settings': 220, Messages: 130, Terminal: 0 };
   // simple rounded-square placeholder icon with the app's initial
   const icon = (path) => {
