@@ -34,6 +34,17 @@ for (const scheme of ['light', 'dark']) {
   await p.fill('.search', '12*7+3');
   await p.waitForTimeout(300);
   await shoot(`palette-calc-${scheme}.jpg`);
+  await p.fill('.search', 'priv');
+  await p.waitForTimeout(300);
+  await shoot(`palette-settings-${scheme}.jpg`);
+  await p.fill('.search', 'restart');
+  await p.keyboard.press('Enter'); // arms the row; the second Enter would restart, the mock ignores it and we never send it
+  await p.getByText('Press Enter again to restart').first().waitFor();
+  await p.waitForTimeout(300);
+  await shoot(`palette-armed-${scheme}.jpg`);
+  await p.fill('.search', '=');
+  await p.waitForTimeout(300);
+  await shoot(`palette-history-${scheme}.jpg`);
   // ⌘ alone only toggles the number hints; nothing runs until a second key
   await p.fill('.search', 'ma');
   await p.keyboard.down('Meta');
@@ -51,7 +62,8 @@ for (const scheme of ['light', 'dark']) {
     // this WebKit build draws <input switch> as a plain box: restyle it like the macOS switch
     await s.addStyleTag({ content: `input[switch]{appearance:none;width:38px;height:22px;border-radius:11px;background:${dark ? '#5a5a5e' : '#d0d0d4'};position:relative;margin:0}input[switch]:checked{background:#34c759}input[switch]::before{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.3);transition:none}input[switch]:checked::before{left:18px}` });
     await s.waitForSelector('h1, h2');
-    await s.waitForTimeout(400);
+    await s.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    await s.waitForTimeout(800);
     const shot = (await s.screenshot()).toString('base64');
     await c2.close();
     const f = await ctx.newPage();

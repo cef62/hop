@@ -80,8 +80,8 @@ const keys = [
           <li>Press <kbd>Enter</kbd> to open, <kbd>⌘Enter</kbd> to reveal in Finder.</li>
           <li>Hold <kbd>⌘</kbd> to see numbers on the first nine results, then press <kbd>⌘1</kbd> to <kbd>⌘9</kbd> to open one.</li>
         </ul>
-        <Shot name="palette-results" alt="The hop palette with the query “sa”, listing Safari and Messages." caption="Typing “sa”." />
-        <Shot name="palette-cmd" alt="The hop palette with the query “ma” while ⌘ is held: Mail, Maps, Messages and Terminal show ⌘1 to ⌘4 at the right of each row." caption="Holding ⌘ shows the number keys." />
+        <Shot name="palette-results" alt="The hop palette with the query “sa”, listing Safari, Messages, the Restart command and the Displays section of System Settings." caption="Typing “sa”." />
+        <Shot name="palette-cmd" alt="The hop palette with the query “ma” while ⌘ is held: Mail, Maps, Messages, Terminal and Empty Trash show ⌘1 to ⌘5 at the right of each row." caption="Holding ⌘ shows the number keys." />
         <h3>Where hop looks</h3>
         <ul>
           <li><code>/Applications</code>, <code>/System/Applications</code>, their <code>Utilities</code> folders and <code>~/Applications</code>.</li>
@@ -93,6 +93,7 @@ const keys = [
 
       <section id="system-settings">
         <h2>System Settings</h2>
+        <Shot name="palette-settings" alt="The hop palette with the query “priv”: one row, Privacy & Security, with the System Settings icon and a “System Settings” tag at the right." caption="Typing “priv” finds the Privacy & Security section." />
         <ul>
           <li>Type a section's name to find it, such as <code>privacy</code> for Privacy &amp; Security or <code>storage</code> for General › Storage.</li>
           <li>Press <kbd>Enter</kbd> to open System Settings on that section.</li>
@@ -103,6 +104,7 @@ const keys = [
 
       <section id="system-commands">
         <h2>System commands</h2>
+        <Shot name="palette-armed" alt="The hop palette with the query “restart”: the Restart row now reads “Press Enter again to restart”, with “Enter confirm” at its right." caption="After the first Enter on Restart: press Enter again to confirm." />
         <ul>
           <li>Type a command's name: Lock Screen, Sleep, Restart, Shut Down, Log Out or Empty Trash.</li>
           <li>Other names work too: <code>lock</code>, <code>reboot</code>, <code>shutdown</code>, <code>power off</code>, <code>logout</code>, <code>sign out</code> and <code>trash</code>. Names are English only.</li>
@@ -129,8 +131,9 @@ const keys = [
           <li>Whole numbers up to 9007199254740991 are exact. Other answers round to 12 significant digits. Very large or small answers show in exponent form, like <code>9.00719925474e+15</code>, so a rounded answer never looks exact.</li>
         </ul>
         <h3>History</h3>
+        <Shot name="palette-history" alt="The hop palette with the query “=”: five past sums, each as an expression, an equals sign and its result, such as “12*7+3 = 87”, with “Enter edit” at the right of the first." caption="Typing = lists your copied results." />
         <ul>
-          <li>hop keeps the last 20 results you copied. Under a sum, the latest 5 show below its answer, as <code>expression = result</code>. <code>2+2</code> and <code>2 + 2</code> are one entry.</li>
+          <li>hop keeps the last 20 results you copied. Under a sum, up to 5 of the latest show below its answer (not the one you are typing), as <code>expression = result</code>. <code>2+2</code> and <code>2 + 2</code> are one entry.</li>
           <li>Type <code>=</code> alone to see all 20.</li>
           <li><kbd>Enter</kbd> (or <kbd>⌘1</kbd> to <kbd>⌘9</kbd>, or a click) on a history row puts its expression in the field, so you can edit it. The palette stays open.</li>
           <li><kbd>⌘Enter</kbd> inserts its result. After an operator, <code>1+</code> becomes <code>1+87</code> (a sum that waits for its last number lists history too). On <code>=</code> or an empty field, the result replaces it. Under a complete sum or a number there is no place for it, so <kbd>⌘Enter</kbd> does nothing and the palette does not offer it.</li>
