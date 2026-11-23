@@ -83,6 +83,18 @@ test("7- lists 7-Zip first and no history row; 1+ with no match lists history (#
   expect(rows()).toEqual(["2*3 = 6↵ edit"]);
 });
 
+test("1- keeps history with a weak name match like 1Password 7 - Password Manager; 7- still lists 7-Zip", async () => {
+  const weak = [...items, app("1Password 7 - Password Manager"), app("Microsoft Teams (work or school)")];
+  await mount({ list_apps: { generation: 1, items: weak }, calc_history: [{ expr: "2*3", result: "6" }] });
+  await emit("palette-shown");
+  for (const q of ["1-", "(", "-"]) {
+    await type(q);
+    expect(rows()[0], q).toBe("2*3 = 6↵ edit");
+  }
+  await type("7-");
+  expect(rows()[0]).toBe("7-Zip↵ open");
+});
+
 test("Enter runs the app with the folded pick key; ⌘Enter reveals", async () => {
   await mount();
   await type("Saf");

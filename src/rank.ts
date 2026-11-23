@@ -72,5 +72,13 @@ export function search(query: string, items: Prepared[], frecency: Frecency, pic
     .map((h) => h.item);
 }
 
+/** Some item matches `query` strongly: exact, prefix, or word start (tier 4 and up). A query that starts with a symbol
+ * has no words to start (`(` follows every space), so it needs a prefix. Only then does an open sum give up its history. */
+export function strong(query: string, items: Prepared[]): boolean {
+  const q = fold(query.trim());
+  const min = /^[\p{L}\p{N}]/u.test(q) ? 4 : 5;
+  return items.some(({ keys }) => keys.some((k) => tier(q, k.f, k.ini) >= min));
+}
+
 /** Selection after an arrow key: stays within the rows, 0 when there are none. */
 export const move = (sel: number, delta: number, rows: number): number => Math.max(0, Math.min(rows - 1, sel + delta));

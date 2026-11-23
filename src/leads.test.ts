@@ -93,6 +93,13 @@ test("an open sum (ends in an operator or an open parenthesis) shows the latest 
   for (const q of ["))+(", "1)+", ")+", "(1))*"]) expect(leads(q, calc(q), hist(8), true), q).toEqual([]);
 });
 
+test("an open sum keeps its history unless a strong match hides it", () => {
+  const strongs = ["7-", "7 -"];
+  const weak = ["1-", "(", "-"]; // 1Password 7 - Password Manager, Microsoft Teams (work or school), Wi-Fi
+  for (const q of strongs) expect(leads(q, calc(q), hist(8), true, true), q).toEqual([]);
+  for (const q of weak) expect(leads(q, calc(q), hist(8), true, false), q).toHaveLength(5);
+});
+
 test("an open sum lists history only when no item matches the query", () => {
   const hist5 = hist(8).slice(0, 5).map(h);
   // an item matches (7-Zip for `7-`): no history rows, the item is first

@@ -29,8 +29,8 @@ export function open(query: string): boolean {
 /** The lead rows for `query`. Off (the Calculator switch): none, `=` is a plain search. Exactly `=` (spaces around it
  * are ignored): the whole history, no live row. A sum (`result` not null): its answer, then the latest `SHOWN`
  * entries, leaving out the one that is the query itself (spaces ignored: it would only repeat the live row). An open
- * sum (`1+`): the latest `SHOWN` entries alone, to pick a result to complete it with, unless an item matches the query (`matched`: `7-` is the start of
- * 7-Zip, and Enter must open it). Anything else: none. */
+ * sum (`1+`): the latest `SHOWN` entries alone, to pick a result to complete it with, unless an item matches the query strongly (`matched`, see `strong`: `7-` is the start of
+ * 7-Zip, and Enter must open it; `1-` only sits inside "1Password 7 - Password Manager"). Anything else: none. */
 export function leads(query: string, result: string | null, history: Entry[], on: boolean, matched = false): Lead[] {
   const q = query.trim();
   const past = (list: Entry[], n: number): Lead[] => list.slice(0, n).map((e) => ({ kind: "history", expr: e.expr, result: e.result }));
