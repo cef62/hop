@@ -49,7 +49,7 @@ mod mac {
 
     use objc2::rc::Retained;
     use objc2::runtime::AnyObject;
-    use objc2_foundation::{NSDictionary, NSMutableDictionary, NSNumber, NSString};
+    use objc2_foundation::{NSArray, NSDictionary, NSMutableDictionary, NSNumber, NSString};
 
     use super::{Item, Kind, PREFIX, SETTINGS_APP};
 
@@ -75,35 +75,65 @@ mod mac {
         Some(get(d, key)?.downcast::<NSString>().ok()?.to_string()).filter(|s| !s.is_empty())
     }
 
-    /// The section's name for a preferred language: the exact region (`it-IT` → `it_IT`, `zh-Hant-TW` → `zh_TW`), the
-    /// bare language, then any region of it (some loctables have `en_GB` but no `en`).
-    fn localized(loc: &NSDictionary, lang: &str) -> Option<String> {
+    /// String `key` of a loctable for a preferred language: the exact region (`it-IT` → `it_IT`, `zh-Hant-TW` →
+    /// `zh_TW`), the bare language, then any region of it (some loctables have `en_GB` but no `en`).
+    fn localized(loc: &NSDictionary, lang: &str, key: &str) -> Option<String> {
         let mut parts = lang.split('-');
         let base = parts.next()?;
         let mut keys: Vec<String> = loc.allKeys().iter().filter_map(|k| Some(k.downcast::<NSString>().ok()?.to_string())).collect();
         keys.sort(); // the same region wins on every scan
         let regions = keys.into_iter().filter(|k| k.strip_prefix(base).is_some_and(|r| r.starts_with('_')));
         let tries = parts.last().map(|r| format!("{base}_{r}")).into_iter().chain([base.to_string()]).chain(regions);
-        tries.into_iter().find_map(|k| dict(loc, &k).and_then(|d| string(&d, "CFBundleDisplayName")))
+        tries.into_iter().find_map(|k| dict(loc, &k).and_then(|d| string(&d, key)))
+    }
+
+    /// Each of `keys` in each preferred language, then English, without repeats. A name equal to `junk` is no name.
+    fn names_in(loc: Option<Retained<NSDictionary>>, langs: &[String], keys: &[String], junk: Option<&str>) -> Vec<String> {
+        let mut names: Vec<String> = Vec::new();
+        let Some(loc) = loc else { return names };
+        for l in langs.iter().map(String::as_str).chain(["en"]) {
+            for n in keys.iter().filter_map(|k| localized(&loc, l, k)) {
+                if Some(n.as_str()) != junk && !names.contains(&n) {
+                    names.push(n);
+                }
+            }
+        }
+        names
+    }
+
+    /// The Localizable.loctable keys of the section's sidebar rows (Battery has no bundle name, only these).
+    // shortcut: the `powersource.battery == YES` row is put first without evaluating predicates, so a desktop Mac shows
+    // "Battery" for its Energy section (both names match, the row opens the right pane); evaluate it if that matters
+    fn sidebar_keys(attrs: &NSDictionary) -> Vec<String> {
+        let Some(reps) = get(attrs, "representations").and_then(|r| r.downcast::<NSArray>().ok()) else { return Vec::new() };
+        let mut keys: Vec<(bool, String)> = reps
+            .iter()
+            .filter_map(|r| {
+                let r = r.downcast::<NSDictionary>().ok()?;
+                Some((string(&r, "predicate").as_deref() != Some("powersource.battery == YES"), string(&r, "sidebar-name")?))
+            })
+            .collect();
+        keys.sort_by_key(|k| k.0); // stable: the battery row first, the rest in file order
+        keys.into_iter().map(|k| k.1).collect()
     }
 
     pub fn section(appex: &Path, langs: &[String]) -> Option<Item> {
         let info = read(&appex.join("Contents/Info.plist"))?;
         let ext = dict(&info, "EXAppExtensionAttributes")?;
-        let linkable = dict(&ext, "SettingsExtensionAttributes")
-            .and_then(|a| get(&a, "allowsXAppleSystemPreferencesURLScheme")?.downcast::<NSNumber>().ok())
-            .is_some_and(|n| n.boolValue());
+        let attrs = dict(&ext, "SettingsExtensionAttributes")?;
+        let linkable = get(&attrs, "allowsXAppleSystemPreferencesURLScheme").and_then(|f| f.downcast::<NSNumber>().ok()).is_some_and(|n| n.boolValue());
         if string(&ext, "EXExtensionPointIdentifier").as_deref() != Some(POINT) || !linkable {
             return None;
         }
         let id = string(&info, "CFBundleIdentifier")?;
-        // Info.plist's own CFBundleDisplayName is often the target name ("PowerPreferences"): only the loctable counts
-        let loc = read(&appex.join("Contents/Resources/InfoPlist.loctable"))?;
-        let mut names: Vec<String> = Vec::new();
-        for n in langs.iter().map(String::as_str).chain(["en"]).filter_map(|l| localized(&loc, l)) {
-            if !names.contains(&n) {
-                names.push(n);
-            }
+        // Info.plist's own CFBundleDisplayName is often the target name ("PowerPreferences"): only the loctable counts.
+        // Headphones' loctable repeats its executable's name ("HeadphoneSettingsExtension"); Bluetooth's real name is
+        // its executable's too, so only one ending in "Extension" is junk
+        let exec = string(&info, "CFBundleExecutable").filter(|e| e.ends_with("Extension"));
+        let res = appex.join("Contents/Resources");
+        let mut names = names_in(read(&res.join("InfoPlist.loctable")), langs, &["CFBundleDisplayName".into()], exec.as_deref());
+        if names.is_empty() {
+            names = names_in(read(&res.join("Localizable.loctable")), langs, &sidebar_keys(&attrs), None);
         }
         if names.is_empty() {
             return None;
@@ -131,18 +161,29 @@ mod tests {
             dir.join("Info.plist"),
             format!(
                 r#"<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict>
-<key>CFBundleIdentifier</key><string>{id}</string><key>CFBundleDisplayName</key><string>Junk</string>
+<key>CFBundleIdentifier</key><string>{id}</string><key>CFBundleDisplayName</key><string>Junk</string><!--info-->
 <key>EXAppExtensionAttributes</key><dict><key>EXExtensionPointIdentifier</key><string>{point}</string>
-<key>SettingsExtensionAttributes</key><dict>{url}</dict></dict></dict></plist>"#
+<key>SettingsExtensionAttributes</key><dict>{url}<!--attrs--></dict></dict></dict></plist>"#
             ),
         )
         .unwrap();
-        let langs: String = names
-            .iter()
-            .map(|(l, n)| format!("<key>{l}</key><dict><key>CFBundleDisplayName</key><string>{}</string></dict>", n.replace('&', "&amp;")))
-            .collect();
-        let loctable = format!(r#"<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict><key>LocProvenance</key><dict/>{langs}</dict></plist>"#);
-        fs::write(dir.join("Resources/InfoPlist.loctable"), loctable).unwrap();
+        let names: Vec<(&str, Vec<(&str, &str)>)> = names.iter().map(|&(l, n)| (l, vec![("CFBundleDisplayName", n)])).collect();
+        loctable(root, id, "InfoPlist", &names);
+    }
+
+    /// Writes `Contents/Resources/<file>.loctable`: per language key, its strings.
+    fn loctable(root: &Path, id: &str, file: &str, langs: &[(&str, Vec<(&str, &str)>)]) {
+        let dict = |kv: &[(&str, &str)]| kv.iter().map(|(k, v)| format!("<key>{k}</key><string>{}</string>", v.replace('&', "&amp;"))).collect::<String>();
+        let langs: String = langs.iter().map(|(l, kv)| format!("<key>{l}</key><dict>{}</dict>", dict(kv))).collect();
+        let xml = format!(r#"<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict><key>LocProvenance</key><dict/>{langs}</dict></plist>"#);
+        fs::write(root.join(format!("{id}.appex/Contents/Resources/{file}.loctable")), xml).unwrap();
+    }
+
+    /// Adds `xml` to the appex's Info.plist: at the top level (`info`) or in `SettingsExtensionAttributes` (`attrs`).
+    fn patch(root: &Path, id: &str, at: &str, xml: &str) {
+        let file = root.join(format!("{id}.appex/Contents/Info.plist"));
+        let text = fs::read_to_string(&file).unwrap().replace(&format!("<!--{at}-->"), xml);
+        fs::write(file, text).unwrap();
     }
 
     const UI: &str = "com.apple.Settings.extension.ui";
@@ -229,6 +270,49 @@ mod tests {
         assert_eq!(found(&["zh-Hant-TW"])[3], (s("顯示器"), vec![s("Displays")]));
     }
 
+    #[test]
+    fn sections_without_a_bundle_name_use_their_sidebar_names() {
+        let tmp = tempfile::tempdir().unwrap();
+        let battery = "com.apple.Battery-Settings.extension";
+        // macOS 27's Battery: no CFBundleDisplayName, two sidebar rows picked by whether the Mac has a battery
+        appex(tmp.path(), battery, UI, Some(true), &[]);
+        patch(tmp.path(), battery, "attrs", r#"<key>representations</key><array>
+<dict><key>predicate</key><string>powersource.battery != YES</string><key>sidebar-name</key><string>ENERGY_SAVER_PREF_TITLE</string></dict>
+<dict><key>predicate</key><string>powersource.battery == YES</string><key>sidebar-name</key><string>BATTERY_PREF_TITLE</string></dict>
+<dict><key>sidebar-name</key><string>MISSING_TITLE</string></dict><dict/></array>"#);
+        let titles = |b: &'static str, e: &'static str| vec![("BATTERY_PREF_TITLE", b), ("ENERGY_SAVER_PREF_TITLE", e)];
+        loctable(tmp.path(), battery, "Localizable", &[("en_GB", titles("Battery", "Energy")), ("it", titles("Batteria", "Energia"))]);
+        // a bundle name wins over sidebar names (Mouse and Touch ID have representations too)
+        appex(tmp.path(), "mouse", UI, Some(true), &[("en", "Mouse")]);
+        patch(tmp.path(), "mouse", "attrs", "<key>representations</key><array><dict><key>sidebar-name</key><string>MOUSE</string></dict></array>");
+        loctable(tmp.path(), "mouse", "Localizable", &[("en", vec![("MOUSE", "Rodent")])]);
+        let s = |v: &str| v.to_string();
+        assert_eq!(names(&scan(tmp.path(), &langs(&["it-IT", "en-US"]))), [
+            (s("Batteria"), vec![s("Energia"), s("Battery"), s("Energy")]),
+            (s("Mouse"), vec![]),
+        ]);
+        // no Localizable.loctable: no name, skipped
+        fs::remove_file(tmp.path().join(format!("{battery}.appex/Contents/Resources/Localizable.loctable"))).unwrap();
+        assert_eq!(scan(tmp.path(), &langs(&["en"])).len(), 1);
+    }
+
+    #[test]
+    fn a_target_name_is_no_name() {
+        let tmp = tempfile::tempdir().unwrap();
+        // Headphones on macOS 27: the loctable repeats the executable's name in every language
+        let junk = "HeadphoneSettingsExtension";
+        appex(tmp.path(), "com.apple.HeadphoneSettings", UI, Some(true), &[("en_GB", junk), ("it", junk)]);
+        patch(tmp.path(), "com.apple.HeadphoneSettings", "info", &format!("<key>CFBundleExecutable</key><string>{junk}</string>"));
+        // Bluetooth's name is its executable's too, and is a real name
+        appex(tmp.path(), "com.apple.BluetoothSettings", UI, Some(true), &[("en_GB", "Bluetooth"), ("it", "Bluetooth")]);
+        patch(tmp.path(), "com.apple.BluetoothSettings", "info", "<key>CFBundleExecutable</key><string>Bluetooth</string>");
+        // a name ending in "Extension" that is not the executable stays
+        appex(tmp.path(), "x", UI, Some(true), &[("en", "Some Extension")]);
+        patch(tmp.path(), "x", "info", "<key>CFBundleExecutable</key><string>XSettingsExtension</string>");
+        let s = |v: &str| v.to_string();
+        assert_eq!(names(&scan(tmp.path(), &langs(&["en"]))), [(s("Bluetooth"), vec![]), (s("Some Extension"), vec![])]);
+    }
+
     #[cfg(target_os = "macos")]
     #[test]
     fn real_scan_finds_privacy() {
@@ -239,6 +323,7 @@ mod tests {
         println!("hop: {} System Settings sections in {ROOT}", items.len());
         let privacy = items.iter().find(|i| i.id == format!("pane:{PRIVACY}")).expect("no Privacy & Security");
         assert_eq!(privacy.name, "Privacy & Security");
-        assert!(items.iter().all(|i| !i.name.is_empty()));
+        assert!(items.iter().all(|i| !i.name.is_empty() && !i.name.ends_with("Extension")), "{items:?}");
+        assert!(items.iter().any(|i| i.id == "pane:com.apple.Battery-Settings.extension"), "no Battery");
     }
 }
