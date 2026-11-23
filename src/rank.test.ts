@@ -212,3 +212,46 @@ test("strong: only a prefix, word-start or exact match of a query that starts wi
   expect(strong("vsc", p("Visual Studio Code"))).toBe(false); // initials, tier 3
   expect(strong("sual", p("Visual Studio Code"))).toBe(false); // substring, tier 2
 });
+||||||| parent of b4dd4ea (feat: system commands match Italian, Spanish, German and French names)
+
+
+describe("system command names in other languages", () => {
+  const cmd = (id: string, name: string, altNames: string[]): Item => ({ kind: "command", id, name, altNames });
+  const cmds = [
+    cmd("cmd:lock", "Lock Screen", ["lock", "Blocca schermo", "Bloquear pantalla", "Den Bildschirm sperren", "Verrouiller l’écran"]),
+    cmd("cmd:sleep", "Sleep", ["Poner en reposo", "Ruhezustand", "Suspendre l’activité"]),
+    cmd("cmd:restart", "Restart", ["reboot", "Riavvia", "Reiniciar", "Neustart", "Neu starten", "Redémarrer"]),
+    cmd("cmd:shutdown", "Shut Down", ["shutdown", "power off", "Spegni", "Apagar", "Ausschalten", "Éteindre"]),
+    cmd("cmd:logout", "Log Out", ["logout", "sign out", "Esegui il logout", "Esci", "Cerrar sesión", "Abmelden", "Fermer la session"]),
+    cmd("cmd:empty-trash", "Empty Trash", ["trash", "Svuota il Cestino", "Vaciar papelera", "Papierkorb entleeren", "Vider la corbeille"]),
+  ];
+  const real = "Calculator Calendar Mail Maps Messages Music Notes Photos Podcasts Preview Reminders Shortcuts Safari Stickies Stocks Steam Slack Spotify Standard Notes|Stats|Settings|Sublime Text|Reeder|Replay|Raycast|Rider|Netflix|Notion|Blender|Bildschirmfoto|Abstract|Ableton Live|Apple Music|App Store|Logic Pro|Terminal|Telegram"
+    .split(/[ |]/).filter((n) => n[0] === n[0].toUpperCase());
+  const all = prepare([...real.map((n) => app(n)), ...cmds]);
+
+  test.each(cmds.flatMap((c) => c.altNames.map((a) => [a, c.id] as const)))("%s finds %s", (name, id) => {
+    expect(search(name, all, {})[0].id).toBe(id);
+    if (name === "Den Bildschirm sperren") expect(search("bildschirm sperren", all, {})[0].id).toBe(id); // never a prefix over Bildschirmfoto
+    if (name === "Poner en reposo") expect(search("reposo", all, {})[0].id).toBe(id); // the bare word still finds it, but never as a prefix over Replay
+    expect(search(name.toUpperCase(), all, {})[0].id).toBe(id);
+  });
+
+  test("folded spellings still match", () => {
+    expect(search("eteindre", all, {})[0].id).toBe("cmd:shutdown");
+    expect(search("redemarrer", all, {})[0].id).toBe("cmd:restart");
+    expect(search("verrouiller l'ecran".replace("'", "’"), all, {})[0].id).toBe("cmd:lock");
+  });
+
+  test("an app named by 3 letters or more is never outranked by a command", () => {
+    const appsOnly = prepare(real.map((n) => app(n)));
+    for (const a of real) {
+      for (let n = 3; n <= a.length; n++) {
+        const q = a.slice(0, n);
+        if (!search(q, appsOnly, {}).length) continue;
+        const top = search(q, all, {})[0];
+        // Log Out wins "log" over Logic Pro already in English; no such app is in this list
+        expect(top.kind, `${q} -> ${top.name}`).toBe("app");
+      }
+    }
+  });
+});
