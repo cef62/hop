@@ -1,5 +1,12 @@
 # hop
 
+## 0.3.2
+
+### Patch Changes
+
+- fb1f2b6: Typing a name that starts like a sum, such as 7-Zip, now lists the app instead of calculator history.
+- 6d36519: Fixed the System commands, Calculator and Check every day switches in Settings saving the old value instead of the new one.
+
 ## 0.3.1
 
 ### Patch Changes
