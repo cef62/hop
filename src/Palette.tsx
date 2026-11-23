@@ -242,7 +242,7 @@ export function Palette() {
 
   const items = useMemo(() => prepare(index.items), [index]);
   const rows = useMemo(() => search(query, items, frecency, picks), [query, items, frecency, picks]);
-  const lead = useMemo(() => leads(query, calculator ? calc(query) : null, history, calculator), [query, history, calculator]);
+  const lead = useMemo(() => leads(query, calculator ? calc(query) : null, history, calculator, rows.length > 0), [query, history, calculator, rows]);
   const count = total(rows, lead);
   const at = Math.min(sel, Math.max(count - 1, 0)); // the list can shrink under the selection (app removed)
 

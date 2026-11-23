@@ -93,6 +93,26 @@ test("an open sum (ends in an operator or an open parenthesis) shows the latest 
   for (const q of ["))+(", "1)+", ")+", "(1))*"]) expect(leads(q, calc(q), hist(8), true), q).toEqual([]);
 });
 
+test("an open sum lists history only when no item matches the query", () => {
+  const hist5 = hist(8).slice(0, 5).map(h);
+  // an item matches (7-Zip for `7-`): no history rows, the item is first
+  for (const q of ["7-", "7 -", "1+", "("]) expect(leads(q, calc(q), hist(8), true, true), q).toEqual([]);
+  // none matches: history
+  for (const q of ["7-", "-", "(", "1+", "12*"]) expect(leads(q, calc(q), hist(8), true, false), q).toEqual(hist5);
+  // a complete sum and `=` ignore `matched`
+  expect(leads("2+2", "4", hist(8), true, true)).toEqual(leads("2+2", "4", hist(8), true, false));
+  expect(leads("2+2", "4", hist(8), true, true)[0]).toEqual({ kind: "result", text: "4" });
+  expect(leads("=", null, hist(8), true, true)).toHaveLength(8);
+  // Calculator off: none either way
+  expect(leads("7-", null, hist(8), false, false)).toEqual([]);
+  // Enter on `7-` with 7-Zip matching runs the item, not a history row
+  const rows = [item("7-Zip")];
+  const lead = leads("7-", calc("7-"), hist(8), true, rows.length > 0);
+  const o = step({ armed: null, sel: 0 } as State, { type: "enter", meta: false, repeat: false }, (i) => rowAt(i, lead, rows), "7-");
+  expect(o).toEqual({ armed: null, sel: 0, run: 0 });
+  expect(rowAt(o.run!, lead, rows)).toBe(rows[0]);
+});
+
 test("⌘Enter on a history row: `1+` becomes `1+87` (88), `=` and an empty query become the result", () => {
   expect(cmdEnter("1+").query).toBe("1+87");
   expect(calc("1+87")).toBe("88");
