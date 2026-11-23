@@ -250,3 +250,11 @@ Deviations from Tasks 8-11, recorded in the spec's "Calculator history" section:
 - Fuzz of results fed back through `calc(result + "*1")`: equal, except a non-integer from 1e11 up that rounds to an integer in exponent form comes back in plain digits (same number). Kept the existing display rule; documented.
 - No history refetch after a copy: a copy hides the palette, and `palette-shown` reads it.
 - Mutation checks (JS 35, Rust 15 plus 3 added after the first pass): survivors are equivalent mutants (`live` and the history branch's `armed`: a lead is never an armed row) or glue forwards (Settings save key, `palette-shown` read, caret flag, error reset, `Look` construction).
+
+### After PR 3 (#23, merged 2026-11-23)
+
+- Two review rounds (FAIL with 1 Major, then PASS) and a one-line fix inline. The Major was again a plan gap, mine: history rows appeared only under a complete sum, but "insert" only makes sense after an operator, so the feature as specified could not be used. Lesson: before handing off, walk each user flow in the spec from the first keystroke to the result and check every state it passes through is reachable.
+- The Sonnet-implements / Opus-reviews split worked: same number of rounds as the Opus-implemented PRs, at lower cost. Keep it for frontend-heavy, well-specified work; keep Opus implementing native or safety code.
+- The reducer pattern scaled: history, confirm and repeat guards all in `step`, glue stays thin. A held key now acts once everywhere, a simpler rule than per-row exceptions.
+- Deferred: `7-` lists history while typing `7-Zip` until the next character.
+- Adjustment for PR 4: Sonnet implements and a Sonnet review checks the shots against the real UI.
